@@ -5,7 +5,7 @@ AI content, voice and subtitle studio for Windows. Tauri 2 + Rust backend, React
 **Status:** early development (Phase 2 of 8 — app shell, theming, i18n, SQLite). AI features are not built yet; see [ARCHITECTURE.md](ARCHITECTURE.md) for the plan.
 
 ## Get the Windows installer
-Every push to `main` builds an installer on GitHub Actions:
+Every push to `main` builds an installer on GitHub Actions and publishes it on the **Releases** page (look for the newest "Kothok build N" and download the `.exe`). It is also kept as an Actions artifact:
 **Actions → "Build Windows installer" → latest run → Artifacts → `Kothok-windows-installer`.**
 Pushing a tag like `v0.1.0` also attaches the `.exe` to a GitHub Release.
 
