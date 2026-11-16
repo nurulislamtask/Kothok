@@ -11,6 +11,28 @@ pub enum AppError {
     Io(#[from] std::io::Error),
     #[error("internal state lock poisoned")]
     Lock,
+    #[error("invalid input: {0}")]
+    Invalid(String),
+    #[error("credential store error: {0}")]
+    Credential(String),
+    #[error("provider not found")]
+    ProviderNotFound,
+    #[error("no provider is configured")]
+    NoProvider,
+    #[error("no model selected")]
+    NoModel,
+    #[error("API key missing or rejected")]
+    InvalidKey,
+    #[error("quota or rate limit exceeded")]
+    Quota,
+    #[error("network error: {0}")]
+    Network(String),
+    #[error("provider error: {0}")]
+    Provider(String),
+    #[error("unexpected provider response: {0}")]
+    BadResponse(String),
+    #[error("{0} may incur charges and needs confirmation")]
+    NeedsConfirmation(String),
 }
 
 impl AppError {
@@ -19,15 +41,40 @@ impl AppError {
             AppError::Db(_) => "db_error",
             AppError::Io(_) => "io_error",
             AppError::Lock => "internal",
+            AppError::Invalid(_) => "invalid_input",
+            AppError::Credential(_) => "credential_error",
+            AppError::ProviderNotFound => "provider_not_found",
+            AppError::NoProvider => "no_provider",
+            AppError::NoModel => "no_model",
+            AppError::InvalidKey => "invalid_key",
+            AppError::Quota => "quota_exceeded",
+            AppError::Network(_) => "network_error",
+            AppError::Provider(_) => "provider_error",
+            AppError::BadResponse(_) => "bad_response",
+            AppError::NeedsConfirmation(_) => "needs_confirmation",
+        }
+    }
+
+    /// Extra context the UI may show next to the translated message.
+    pub fn detail(&self) -> Option<String> {
+        match self {
+            AppError::Invalid(m)
+            | AppError::Credential(m)
+            | AppError::Network(m)
+            | AppError::Provider(m)
+            | AppError::BadResponse(m)
+            | AppError::NeedsConfirmation(m) => Some(m.clone()),
+            _ => None,
         }
     }
 }
 
 impl Serialize for AppError {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut st = serializer.serialize_struct("AppError", 2)?;
+        let mut st = serializer.serialize_struct("AppError", 3)?;
         st.serialize_field("code", self.code())?;
         st.serialize_field("message", &self.to_string())?;
+        st.serialize_field("detail", &self.detail())?;
         st.end()
     }
 }
