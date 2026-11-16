@@ -1,0 +1,48 @@
+import { lazy, type ComponentType, type LazyExoticComponent } from "react";
+import {
+  AudioLines,
+  Captions,
+  FolderKanban,
+  Image,
+  KeyRound,
+  Settings,
+  LayoutDashboard,
+  Library,
+  Mic,
+  PenLine,
+  type LucideIcon,
+} from "lucide-react";
+
+export type RouteId =
+  | "dashboard"
+  | "content"
+  | "thumbnail"
+  | "voice"
+  | "voiceLibrary"
+  | "audio"
+  | "subtitles"
+  | "projects"
+  | "apiManager"
+  | "settings";
+
+export interface NavItem {
+  id: RouteId;
+  icon: LucideIcon;
+  /** Development phase in which this page gets built. */
+  phase: number;
+  /** Undefined until the page exists; the shell then shows an honest "not built yet" screen. */
+  page?: LazyExoticComponent<ComponentType>;
+}
+
+export const NAV: readonly NavItem[] = [
+  { id: "dashboard", icon: LayoutDashboard, phase: 2, page: lazy(() => import("../features/dashboard/DashboardPage")) },
+  { id: "content", icon: PenLine, phase: 4 },
+  { id: "thumbnail", icon: Image, phase: 5 },
+  { id: "voice", icon: Mic, phase: 6 },
+  { id: "voiceLibrary", icon: Library, phase: 6 },
+  { id: "audio", icon: AudioLines, phase: 7 },
+  { id: "subtitles", icon: Captions, phase: 7 },
+  { id: "projects", icon: FolderKanban, phase: 4 },
+  { id: "apiManager", icon: KeyRound, phase: 3 },
+  { id: "settings", icon: Settings, phase: 2, page: lazy(() => import("../features/settings/SettingsPage")) },
+];

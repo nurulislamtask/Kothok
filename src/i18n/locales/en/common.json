@@ -1,0 +1,65 @@
+{
+  "app": {
+    "name": "Kothok",
+    "tagline": "Write, voice and subtitle — in one studio."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "content": "Content Studio",
+    "thumbnail": "Thumbnail Studio",
+    "voice": "Voice Studio",
+    "voiceLibrary": "Voice Library",
+    "audio": "Audio & Transcription",
+    "subtitles": "Subtitle Studio",
+    "projects": "Projects",
+    "apiManager": "API Manager",
+    "settings": "Settings"
+  },
+  "topbar": {
+    "searchPlaceholder": "Jump to a page…",
+    "noResults": "No matching page",
+    "language": "Interface language",
+    "toggleTheme": "Switch theme",
+    "openSettings": "Open settings"
+  },
+  "status": {
+    "noProvider": "No AI provider configured",
+    "online": "Online",
+    "offline": "Offline",
+    "noTasks": "No running tasks"
+  },
+  "dashboard": {
+    "welcome": "Welcome to Kothok",
+    "subtitle": "What would you like to create today?",
+    "quickActions": "Quick actions",
+    "actions": {
+      "content": "Generate content",
+      "thumbnail": "Create thumbnail",
+      "voice": "Generate voice",
+      "clone": "Clone voice",
+      "transcribe": "Transcribe audio",
+      "subtitles": "Generate subtitles"
+    }
+  },
+  "comingSoon": {
+    "title": "Not built yet",
+    "body": "This section is planned for phase {{phase}} of development."
+  },
+  "settings": {
+    "title": "Settings",
+    "general": "General",
+    "language": "App language",
+    "languageHint": "This only changes the interface. Content, voice and subtitle languages are chosen separately in each studio.",
+    "theme": "Theme",
+    "dark": "Dark",
+    "light": "Light",
+    "about": "About",
+    "version": "Version"
+  },
+  "errors": {
+    "db_error": "A database problem occurred.",
+    "io_error": "A file could not be read or written.",
+    "internal": "An unexpected internal error occurred.",
+    "unknown": "Something went wrong."
+  }
+}
