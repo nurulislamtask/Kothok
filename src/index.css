@@ -41,6 +41,11 @@
     line-height: 1.65;
   }
 
+  select option {
+    background-color: hsl(var(--card));
+    color: hsl(var(--foreground));
+  }
+
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-primary;
   }

@@ -36,13 +36,13 @@ export interface NavItem {
 
 export const NAV: readonly NavItem[] = [
   { id: "dashboard", icon: LayoutDashboard, phase: 2, page: lazy(() => import("../features/dashboard/DashboardPage")) },
-  { id: "content", icon: PenLine, phase: 4 },
+  { id: "content", icon: PenLine, phase: 4, page: lazy(() => import("../features/content/ContentPage")) },
   { id: "thumbnail", icon: Image, phase: 5 },
   { id: "voice", icon: Mic, phase: 6 },
   { id: "voiceLibrary", icon: Library, phase: 6 },
   { id: "audio", icon: AudioLines, phase: 7 },
   { id: "subtitles", icon: Captions, phase: 7 },
-  { id: "projects", icon: FolderKanban, phase: 4 },
-  { id: "apiManager", icon: KeyRound, phase: 3 },
+  { id: "projects", icon: FolderKanban, phase: 4, page: lazy(() => import("../features/projects/ProjectsPage")) },
+  { id: "apiManager", icon: KeyRound, phase: 3, page: lazy(() => import("../features/api-manager/ApiManagerPage")) },
   { id: "settings", icon: Settings, phase: 2, page: lazy(() => import("../features/settings/SettingsPage")) },
 ];

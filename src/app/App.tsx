@@ -5,15 +5,19 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import StatusBar from "./StatusBar";
 import ComingSoon from "../features/ComingSoon";
+import Toaster from "../components/Toaster";
+import { useProviders } from "../stores/providers";
 
 export default function App() {
   const hydrated = useUi((s) => s.hydrated);
   const hydrate = useUi((s) => s.hydrate);
   const route = useUi((s) => s.route);
+  const refreshProviders = useProviders((s) => s.refresh);
 
   useEffect(() => {
     void hydrate();
-  }, [hydrate]);
+    void refreshProviders();
+  }, [hydrate, refreshProviders]);
 
   // Avoid a flash of the wrong theme/language before settings load.
   if (!hydrated) return null;
@@ -34,6 +38,7 @@ export default function App() {
         </main>
         <StatusBar />
       </div>
+      <Toaster />
     </div>
   );
 }
