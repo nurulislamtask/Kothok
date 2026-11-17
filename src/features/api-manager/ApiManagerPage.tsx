@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Plus, Star, Trash2, X, Zap } from "lucide-react";
 import {
   api,
   savedModel,
+  type Category,
   type CostClass,
   type ModelInfo,
   type Provider,
@@ -13,7 +14,7 @@ import { errorText } from "../../lib/errors";
 import { toast } from "../../stores/toast";
 import { useProviders } from "../../stores/providers";
 import { Badge, Button, ConfirmModal, Field, Input, Modal, Select } from "../../components/ui/controls";
-import { COST_CLASSES, PRESETS } from "./presets";
+import { CATEGORIES, COST_CLASSES, PRESETS } from "./presets";
 
 function isLocalEndpoint(p: Provider): boolean {
   const e = p.endpoint ?? "";
@@ -29,7 +30,8 @@ function costTone(c: CostClass): "ok" | "warn" | "muted" {
 function ProviderForm({ existing, onClose }: { existing?: Provider; onClose: () => void }) {
   const { t } = useTranslation();
   const refresh = useProviders((s) => s.refresh);
-  const first = PRESETS[0];
+  const [category, setCategory] = useState<Category>(existing?.category ?? "text");
+  const first = PRESETS.find((p) => p.category === (existing?.category ?? "text"));
   const [presetId, setPresetId] = useState(existing ? "" : (first?.id ?? "gemini"));
   const [name, setName] = useState(existing?.displayName ?? (first ? t(`api.presets.${first.id}.name`) : ""));
   const [adapter, setAdapter] = useState<string>(existing?.adapter ?? first?.adapter ?? "gemini");
@@ -48,12 +50,18 @@ function ProviderForm({ existing, onClose }: { existing?: Provider; onClose: () 
     setCostClass(p.costClass);
   };
 
+  const changeCategory = (c: Category) => {
+    setCategory(c);
+    const p = PRESETS.find((x) => x.category === c);
+    if (p) applyPreset(p.id);
+  };
+
   const submit = async () => {
     setBusy(true);
     try {
       const input: ProviderInput = {
         id: existing?.id,
-        category: "text",
+        category,
         adapter,
         displayName: name,
         endpoint: endpoint.trim() || null,
@@ -89,9 +97,20 @@ function ProviderForm({ existing, onClose }: { existing?: Provider; onClose: () 
       }
     >
       {!existing && (
+        <Field label={t("api.category")}>
+          <Select value={category} onChange={(e) => changeCategory(e.target.value as Category)}>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {t(`api.categories.${c}`)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
+      {!existing && (
         <Field label={t("api.preset")} hint={preset ? t(`api.presets.${preset.id}.note`) : undefined}>
           <Select value={presetId} onChange={(e) => applyPreset(e.target.value)}>
-            {PRESETS.map((p) => (
+            {PRESETS.filter((p) => p.category === category).map((p) => (
               <option key={p.id} value={p.id}>
                 {t(`api.presets.${p.id}.name`)}
               </option>
@@ -102,7 +121,7 @@ function ProviderForm({ existing, onClose }: { existing?: Provider; onClose: () 
       <Field label={t("api.name")}>
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      {adapter !== "gemini" && (
+      {adapter !== "gemini" && adapter !== "gemini_image" && (
         <Field label={t("api.endpoint")} hint={t("api.endpointHint")}>
           <Input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://…/v1" />
         </Field>
@@ -433,7 +452,6 @@ export default function ApiManagerPage() {
   }, [refresh]);
 
   const text = providers.filter((p) => p.category === "text");
-  const defaultId = defaults.find((d) => d.category === "text")?.providerId ?? null;
 
   return (
     <div className="mx-auto max-w-4xl p-8">
@@ -450,18 +468,26 @@ export default function ApiManagerPage() {
 
       <p className="mt-4 rounded-lg border bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">{t("api.scopeNote")}</p>
 
-      <section className="mt-6 space-y-3">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("api.textProviders")}</h3>
-        {loaded && text.length === 0 && (
-          <div className="rounded-xl border border-dashed p-8 text-center">
-            <div className="text-sm font-medium">{t("api.empty")}</div>
-            <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">{t("api.emptyHint")}</p>
-          </div>
-        )}
-        {text.map((p) => (
-          <ProviderCard key={p.id} p={p} isDefault={p.id === defaultId} />
-        ))}
-      </section>
+      {loaded && providers.length === 0 && (
+        <div className="mt-6 rounded-xl border border-dashed p-8 text-center">
+          <div className="text-sm font-medium">{t("api.empty")}</div>
+          <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">{t("api.emptyHint")}</p>
+        </div>
+      )}
+
+      {CATEGORIES.map((cat) => {
+        const list = providers.filter((p) => p.category === cat);
+        if (list.length === 0) return null;
+        const defaultId = defaults.find((d) => d.category === cat)?.providerId ?? null;
+        return (
+          <section key={cat} className="mt-6 space-y-3">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t(`api.categories.${cat}`)}</h3>
+            {list.map((p) => (
+              <ProviderCard key={p.id} p={p} isDefault={p.id === defaultId} />
+            ))}
+          </section>
+        );
+      })}
 
       {text.length > 1 && <FallbackSection providers={text} />}
 

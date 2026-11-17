@@ -8,6 +8,7 @@ import { cn, formatDate } from "../../lib/utils";
 import { useContent } from "../../stores/content";
 import { toast } from "../../stores/toast";
 import { useUi } from "../../stores/ui";
+import { loadDesign } from "../thumbnail/imageIo";
 import { Badge, Button, ConfirmModal, Input, Modal } from "../../components/ui/controls";
 
 export default function ProjectsPage() {
@@ -83,6 +84,10 @@ export default function ProjectsPage() {
     if (a.kind === "content") {
       useContent.getState().loadAsset(a);
       setRoute("content");
+    } else if (a.kind === "thumbnail") {
+      loadDesign(a)
+        .then(() => setRoute("thumbnail"))
+        .catch((e: unknown) => toast.error(errorText(e)));
     }
   };
 
@@ -162,7 +167,7 @@ export default function ProjectsPage() {
                     <div className="truncate text-sm font-medium">{a.title || t("projects.untitled")}</div>
                     <div className="text-xs text-muted-foreground">{formatDate(a.createdAt, i18n.language)}</div>
                   </div>
-                  {a.kind === "content" && (
+                  {(a.kind === "content" || a.kind === "thumbnail") && (
                     <Button size="sm" onClick={() => openAsset(a)}>
                       {t("projects.open")}
                     </Button>

@@ -58,7 +58,7 @@ pub struct PickedFile {
     pub data_b64: String,
 }
 
-fn mime_for(ext: &str) -> &'static str {
+pub fn mime_for(ext: &str) -> &'static str {
     match ext.to_ascii_lowercase().as_str() {
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",

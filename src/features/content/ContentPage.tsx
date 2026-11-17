@@ -17,7 +17,7 @@ import {
   Copy,
   KeyRound,
 } from "lucide-react";
-import { api, isReady, savedModel, type Project } from "../../lib/api";
+import { api, isReady, savedModel } from "../../lib/api";
 import { errorCode, errorDetail, errorText } from "../../lib/errors";
 import { exportText, type TextFormat } from "../../lib/exporters";
 import { cn } from "../../lib/utils";
@@ -26,7 +26,8 @@ import { useProviders, defaultProvider } from "../../stores/providers";
 import { useTasks } from "../../stores/tasks";
 import { toast } from "../../stores/toast";
 import { useUi } from "../../stores/ui";
-import { Button, ConfirmModal, Field, Input, Modal, Select, Textarea } from "../../components/ui/controls";
+import SaveToProjectModal from "../../components/SaveToProjectModal";
+import { Button, ConfirmModal, Field, Input, Select, Textarea } from "../../components/ui/controls";
 import {
   CONTENT_TYPES,
   LENGTHS,
@@ -68,100 +69,37 @@ function Segmented<T extends string>({
   );
 }
 
-function SaveModal({ onClose }: { onClose: () => void }) {
-  const { t } = useTranslation();
+function ContentSaveModal({ onClose }: { onClose: () => void }) {
   const st = useContent.getState();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [title, setTitle] = useState(st.title || st.body.trim().split(/\r?\n/)[0]?.slice(0, 60) || "");
-  const [projectId, setProjectId] = useState<string>(st.projectId !== null ? String(st.projectId) : "new");
-  const [newName, setNewName] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    api
-      .listProjects()
-      .then((p) => {
-        setProjects(p);
-        if (st.projectId === null && p[0]) setProjectId(String(p[0].id));
-      })
-      .catch((e: unknown) => toast.error(errorText(e)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const submit = async () => {
-    setBusy(true);
-    try {
-      let pid: number;
-      let projectName: string;
-      if (projectId === "new") {
-        const p = await api.createProject(newName || title || t("projects.untitled"));
-        pid = p.id;
-        projectName = p.name;
-      } else {
-        pid = Number(projectId);
-        projectName = projects.find((p) => p.id === pid)?.name ?? "";
-      }
-      const cur = useContent.getState();
-      const meta = JSON.stringify({
-        contentType: cur.settings.contentType,
-        tone: cur.settings.tone,
-        style: cur.settings.style,
-        length: cur.settings.length,
-        platform: cur.settings.platform,
-        provider: cur.note?.provider ?? null,
-        model: cur.note?.model ?? null,
-      });
-      const asset = await api.saveAsset({
-        id: cur.assetId ?? undefined,
-        projectId: pid,
-        kind: "content",
-        title: title.trim() || null,
-        body: cur.body,
-        lang: cur.settings.lang,
-        metaJson: meta,
-      });
-      cur.markSaved(asset.id, asset.projectId, title.trim());
-      toast.success(t("content.savedTo", { project: projectName }));
-      onClose();
-    } catch (e) {
-      toast.error(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  const initialTitle = st.title || st.body.trim().split(/\r?\n/)[0]?.slice(0, 60) || "";
   return (
-    <Modal
-      title={t("content.saveTitle")}
+    <SaveToProjectModal
+      initialTitle={initialTitle}
+      initialProjectId={st.projectId}
       onClose={onClose}
-      footer={
-        <>
-          <Button onClick={onClose}>{t("common.cancel")}</Button>
-          <Button variant="primary" onClick={() => void submit()} disabled={busy}>
-            {t("common.save")}
-          </Button>
-        </>
-      }
-    >
-      <Field label={t("content.docTitle")}>
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("content.titlePlaceholder")} />
-      </Field>
-      <Field label={t("content.project")}>
-        <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-          <option value="new">{t("content.newProject")}</option>
-        </Select>
-      </Field>
-      {projectId === "new" && (
-        <Field label={t("content.newProjectName")}>
-          <Input value={newName} onChange={(e) => setNewName(e.target.value)} />
-        </Field>
-      )}
-    </Modal>
+      onSave={async ({ projectId, title }) => {
+        const cur = useContent.getState();
+        const meta = JSON.stringify({
+          contentType: cur.settings.contentType,
+          tone: cur.settings.tone,
+          style: cur.settings.style,
+          length: cur.settings.length,
+          platform: cur.settings.platform,
+          provider: cur.note?.provider ?? null,
+          model: cur.note?.model ?? null,
+        });
+        const asset = await api.saveAsset({
+          id: cur.assetId ?? undefined,
+          projectId,
+          kind: "content",
+          title: title || null,
+          body: cur.body,
+          lang: cur.settings.lang,
+          metaJson: meta,
+        });
+        cur.markSaved(asset.id, asset.projectId, title);
+      }}
+    />
   );
 }
 
@@ -568,7 +506,7 @@ export default function ContentPage() {
         </div>
       </section>
 
-      {saveOpen && <SaveModal onClose={() => setSaveOpen(false)} />}
+      {saveOpen && <ContentSaveModal onClose={() => setSaveOpen(false)} />}
       {paid && (
         <ConfirmModal
           title={t("content.confirmPaidTitle")}

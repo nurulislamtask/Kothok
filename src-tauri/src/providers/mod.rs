@@ -4,13 +4,27 @@
 
 pub mod gemini;
 mod http;
+pub mod image_gen;
 pub mod openai_compat;
 
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 
-pub const ADAPTERS: &[&str] = &["gemini", "openai_compat"];
+/// Adapters that exist for each provider category. A category with no adapters
+/// cannot be configured yet, so the UI never offers something that cannot work.
+pub fn adapters_for(category: &str) -> &'static [&'static str] {
+    match category {
+        "text" => &["gemini", "openai_compat"],
+        "image" => &["gemini_image", "openai_images"],
+        _ => &[],
+    }
+}
+
+/// Adapters that talk to a user-supplied OpenAI-style base URL.
+pub fn needs_endpoint(adapter: &str) -> bool {
+    matches!(adapter, "openai_compat" | "openai_images")
+}
 pub const CATEGORIES: &[&str] = &["text", "image", "tts", "clone", "stt"];
 pub const COST_CLASSES: &[&str] = &["local", "free", "free_tier", "paid"];
 
@@ -94,8 +108,8 @@ pub async fn list_models(
     key: Option<&str>,
 ) -> Result<Vec<ModelInfo>, AppError> {
     match p.adapter.as_str() {
-        "gemini" => gemini::list_models(p, key).await,
-        "openai_compat" => openai_compat::list_models(p, key).await,
+        "gemini" | "gemini_image" => gemini::list_models(p, key).await,
+        "openai_compat" | "openai_images" => openai_compat::list_models(p, key).await,
         other => Err(AppError::Invalid(format!("unknown adapter {other}"))),
     }
 }

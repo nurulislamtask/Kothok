@@ -6,7 +6,7 @@ use super::http::{check, client, map_send_error, read_json};
 use super::{ModelInfo, ProviderRecord, TextRequest};
 use crate::error::AppError;
 
-fn base(p: &ProviderRecord) -> Result<String, AppError> {
+pub(super) fn base(p: &ProviderRecord) -> Result<String, AppError> {
     let e = p
         .endpoint
         .as_deref()

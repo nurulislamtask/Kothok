@@ -2,6 +2,7 @@ mod commands;
 mod credentials;
 mod db;
 mod error;
+mod paths;
 mod providers;
 
 use tauri::Manager;
@@ -14,6 +15,7 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             let database = db::Db::open(&data_dir)?;
             app.manage(database);
+            app.manage(paths::AppPaths::new(&data_dir)?);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -29,6 +31,9 @@ pub fn run() {
             commands::providers::set_fallback_chain,
             commands::providers::get_fallback_chains,
             commands::ai::ai_generate,
+            commands::image::ai_generate_image,
+            commands::media::save_media,
+            commands::media::read_media,
             commands::library::list_projects,
             commands::library::create_project,
             commands::library::rename_project,

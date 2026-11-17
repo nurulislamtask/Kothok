@@ -75,6 +75,21 @@ export interface GenerateOutput {
   fellBack: boolean;
 }
 
+export interface ImageGenInput {
+  providerId?: string;
+  model?: string;
+  prompt: string;
+  size?: string;
+  aspect?: string;
+}
+
+export interface ImageGenOutput {
+  dataB64: string;
+  mime: string;
+  providerName: string;
+  model: string;
+}
+
 export type AssetKind = "content" | "audio" | "thumbnail" | "subtitle" | "transcript" | "voice_sample";
 
 export interface Project {
@@ -103,6 +118,7 @@ export interface AssetInput {
   projectId: number | null;
   kind: AssetKind;
   title: string | null;
+  filePath?: string | null;
   body: string | null;
   lang: string | null;
   metaJson: string | null;
@@ -145,6 +161,10 @@ export const api = {
     call<Asset[]>("list_assets", { projectId, kind, limit: limit ?? null }),
   getAsset: (id: number) => call<Asset>("get_asset", { id }),
   deleteAsset: (id: number) => call<void>("delete_asset", { id }),
+
+  generateImage: (input: ImageGenInput) => call<ImageGenOutput>("ai_generate_image", { input }),
+  saveMedia: (ext: string, dataB64: string) => call<string>("save_media", { ext, dataB64 }),
+  readMedia: (path: string) => call<PickedFile>("read_media", { path }),
 
   exportFile: (suggestedName: string, filterName: string, extensions: string[], dataB64: string) =>
     call<string | null>("export_file", { suggestedName, filterName, extensions, dataB64 }),

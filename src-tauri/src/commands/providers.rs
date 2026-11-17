@@ -6,8 +6,8 @@ use crate::credentials;
 use crate::db::Db;
 use crate::error::AppError;
 use crate::providers::{
-    self, saved_model, validate_endpoint, ModelInfo, ProviderRecord, ADAPTERS, CATEGORIES,
-    COST_CLASSES,
+    self, adapters_for, needs_endpoint, saved_model, validate_endpoint, ModelInfo, ProviderRecord,
+    CATEGORIES, COST_CLASSES,
 };
 
 const COLS: &str = "id, category, adapter, display_name, endpoint, enabled, cost_class, \
@@ -90,7 +90,7 @@ fn validate_input(input: &ProviderInput) -> Result<(), AppError> {
     if !CATEGORIES.contains(&input.category.as_str()) {
         return Err(AppError::Invalid("unknown category".into()));
     }
-    if !ADAPTERS.contains(&input.adapter.as_str()) {
+    if !adapters_for(&input.category).contains(&input.adapter.as_str()) {
         return Err(AppError::Invalid("unknown adapter".into()));
     }
     if !COST_CLASSES.contains(&input.cost_class.as_str()) {
@@ -107,7 +107,7 @@ fn validate_input(input: &ProviderInput) -> Result<(), AppError> {
         .filter(|s| !s.is_empty());
     match endpoint {
         Some(e) => validate_endpoint(e)?,
-        None if input.adapter == "openai_compat" => {
+        None if needs_endpoint(&input.adapter) => {
             return Err(AppError::Invalid("endpoint is required".into()))
         }
         None => {}

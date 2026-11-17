@@ -96,7 +96,8 @@
     "edit": "Edit",
     "remove": "Remove",
     "undo": "Undo",
-    "stop": "Stop"
+    "stop": "Stop",
+    "redo": "Redo"
   },
   "api": {
     "title": "API Manager",
@@ -104,7 +105,7 @@
     "add": "Add provider",
     "addTitle": "Add provider",
     "editTitle": "Edit provider",
-    "scopeNote": "Text-generation providers work now. Image, voice and transcription providers arrive in later releases.",
+    "scopeNote": "Text and image providers work now. Voice and transcription providers arrive in later releases.",
     "textProviders": "Text generation",
     "empty": "No providers yet",
     "emptyHint": "Add Gemini, OpenRouter, a local model server or any OpenAI-compatible API to start generating content.",
@@ -183,7 +184,24 @@
       "custom": {
         "name": "Custom (OpenAI-compatible)",
         "note": "Any server that speaks the OpenAI chat API."
+      },
+      "gemini_image": {
+        "name": "Google Gemini (images)",
+        "note": "Image models may require a paid plan — check Google's pricing. Enter the image model id from Google's documentation (for example gemini-3.1-flash-image)."
+      },
+      "openai_images": {
+        "name": "OpenAI (images)",
+        "note": "Paid API, billed per image. Enter an image model id from OpenAI's documentation."
+      },
+      "custom_image": {
+        "name": "Custom (OpenAI-compatible images)",
+        "note": "Any server that implements /images/generations, including servers running on this PC."
       }
+    },
+    "category": "Provider type",
+    "categories": {
+      "text": "Text generation",
+      "image": "Image generation"
     }
   },
   "content": {
@@ -331,5 +349,78 @@
       "transcript": "Transcript",
       "voice_sample": "Voice sample"
     }
+  },
+  "thumb": {
+    "size": "Canvas size",
+    "custom": "Custom",
+    "width": "Width",
+    "height": "Height",
+    "apply": "Apply",
+    "sizeRange": "Width and height must be between 100 and 4096 pixels.",
+    "presets": {
+      "youtube": "YouTube thumbnail",
+      "shorts": "YouTube Shorts",
+      "facebook": "Facebook post",
+      "instagramSquare": "Instagram post",
+      "instagramPortrait": "Instagram portrait"
+    },
+    "addText": "Text",
+    "uploadImage": "Upload image",
+    "aiImage": "AI image",
+    "defaultText": "Your text",
+    "badImage": "This image could not be opened. Use PNG, JPG, WEBP or GIF.",
+    "aiTitle": "Generate an image with AI",
+    "generate": "Generate",
+    "generated": "Image added by {{provider}}",
+    "needTopic": "Describe the thumbnail topic first.",
+    "needPrompt": "Write or generate a prompt first.",
+    "noImageProvider": "No image provider is set up",
+    "noImageProviderBody": "Add an image provider in API Manager and save a model. Image generation may cost money depending on the provider. You can still design thumbnails manually without it.",
+    "topicLabel": "Thumbnail topic",
+    "topicPlaceholder": "e.g. Dhaka street food tour",
+    "suggest": "Suggest prompt",
+    "prompt": "Image prompt",
+    "promptHint": "Tip: generated images should not contain text — add your text as a layer so Bangla letters stay correct.",
+    "imageSize": "Image size",
+    "sizeAuto": "Provider default",
+    "paidNote": "This provider is marked as paid — each image may be billed to your account.",
+    "background": "Background",
+    "solid": "Solid",
+    "gradient": "Gradient",
+    "color1": "Colour",
+    "color2": "Colour 2",
+    "angle": "Angle",
+    "layers": "Layers",
+    "noLayers": "Add text or an image to start. Drag layers on the canvas; use the corner handle to resize.",
+    "hide": "Hide layer",
+    "show": "Show layer",
+    "duplicate": "Duplicate",
+    "properties": "Properties",
+    "posX": "X",
+    "posY": "Y",
+    "scale": "Scale",
+    "rotation": "Rotation",
+    "opacity": "Opacity",
+    "fitCover": "Fill canvas",
+    "fitContain": "Fit inside",
+    "crop": "Crop (% removed)",
+    "cropL": "Left",
+    "cropR": "Right",
+    "cropT": "Top",
+    "cropB": "Bottom",
+    "text": "Text",
+    "font": "Font",
+    "weight": "Weight",
+    "fontSize": "Size",
+    "wrapWidth": "Wrap width",
+    "textColor": "Text colour",
+    "strokeColor": "Outline",
+    "strokeWidth": "Outline width",
+    "shadow": "Shadow",
+    "italic": "Italic",
+    "align": "Alignment",
+    "alignLeft": "Left",
+    "alignCenter": "Centre",
+    "alignRight": "Right"
   }
 }

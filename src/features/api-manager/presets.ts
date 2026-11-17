@@ -1,8 +1,9 @@
-import type { CostClass } from "../../lib/api";
+import type { Category, CostClass } from "../../lib/api";
 
 export interface Preset {
   id: string;
-  adapter: "gemini" | "openai_compat";
+  category: Category;
+  adapter: string;
   endpoint: string;
   costClass: CostClass;
 }
@@ -11,13 +12,19 @@ export interface Preset {
 // deliberately conservative: anything that can bill money is "paid", so the
 // fallback system asks before using it. Users can change the class per provider.
 export const PRESETS: readonly Preset[] = [
-  { id: "gemini", adapter: "gemini", endpoint: "", costClass: "free_tier" },
-  { id: "openrouter", adapter: "openai_compat", endpoint: "https://openrouter.ai/api/v1", costClass: "paid" },
-  { id: "openai", adapter: "openai_compat", endpoint: "https://api.openai.com/v1", costClass: "paid" },
-  { id: "groq", adapter: "openai_compat", endpoint: "https://api.groq.com/openai/v1", costClass: "free_tier" },
-  { id: "ollama", adapter: "openai_compat", endpoint: "http://localhost:11434/v1", costClass: "local" },
-  { id: "lmstudio", adapter: "openai_compat", endpoint: "http://localhost:1234/v1", costClass: "local" },
-  { id: "custom", adapter: "openai_compat", endpoint: "", costClass: "paid" },
+  { id: "gemini", category: "text", adapter: "gemini", endpoint: "", costClass: "free_tier" },
+  { id: "openrouter", category: "text", adapter: "openai_compat", endpoint: "https://openrouter.ai/api/v1", costClass: "paid" },
+  { id: "openai", category: "text", adapter: "openai_compat", endpoint: "https://api.openai.com/v1", costClass: "paid" },
+  { id: "groq", category: "text", adapter: "openai_compat", endpoint: "https://api.groq.com/openai/v1", costClass: "free_tier" },
+  { id: "ollama", category: "text", adapter: "openai_compat", endpoint: "http://localhost:11434/v1", costClass: "local" },
+  { id: "lmstudio", category: "text", adapter: "openai_compat", endpoint: "http://localhost:1234/v1", costClass: "local" },
+  { id: "custom", category: "text", adapter: "openai_compat", endpoint: "", costClass: "paid" },
+  { id: "gemini_image", category: "image", adapter: "gemini_image", endpoint: "", costClass: "paid" },
+  { id: "openai_images", category: "image", adapter: "openai_images", endpoint: "https://api.openai.com/v1", costClass: "paid" },
+  { id: "custom_image", category: "image", adapter: "openai_images", endpoint: "", costClass: "paid" },
 ];
+
+/** Provider categories that have working adapters in this build. */
+export const CATEGORIES: readonly Category[] = ["text", "image"];
 
 export const COST_CLASSES: readonly CostClass[] = ["local", "free", "free_tier", "paid"];
