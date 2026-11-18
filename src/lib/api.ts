@@ -219,6 +219,16 @@ export interface StorageInfo {
   unusedBytes: number;
 }
 
+export interface ImportedAudio {
+  file: string;
+  label: string;
+  size: number;
+}
+export interface ToolsStatus {
+  ffmpeg: boolean;
+  ffmpegSource: string | null;
+}
+
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauri()) {
     throw { code: "not_desktop", message: "This action needs the Kothok desktop app." };
@@ -275,6 +285,10 @@ export const api = {
   installUpdate: (installerUrl: string) => call<void>("install_update", { installerUrl }),
   storageInfo: () => call<StorageInfo>("storage_info"),
   cleanUnusedMedia: () => call<number>("clean_unused_media"),
+
+  importAudio: () => call<ImportedAudio | null>("import_audio"),
+  toolsStatus: () => call<ToolsStatus>("tools_status"),
+  installFfmpeg: () => call<void>("install_ffmpeg"),
 
   exportFile: (suggestedName: string, filterName: string, extensions: string[], dataB64: string) =>
     call<string | null>("export_file", { suggestedName, filterName, extensions, dataB64 }),

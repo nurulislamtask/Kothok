@@ -91,7 +91,14 @@
     "installUpdate": "Download and install",
     "downloading": "Downloading…",
     "devBuild": "This copy was not built by the release workflow, so it has no build number and cannot check for updates.",
-    "updateSecurity": "Installers come from this project's GitHub Releases and are checked against a SHA-256 checksum before they run. The app closes when the installer starts."
+    "updateSecurity": "Installers come from this project's GitHub Releases and are checked against a SHA-256 checksum before they run. The app closes when the installer starts.",
+    "tools": "Tools",
+    "ffmpegHint": "Optional. Lets Kothok compress and split recordings larger than 25 MB for transcription. Downloads about 100 MB from gyan.dev and checks its SHA-256.",
+    "ffmpegApp": "Installed by Kothok.",
+    "ffmpegSystem": "Found on this PC.",
+    "ffmpegInstall": "Download FFmpeg",
+    "ffmpegDone": "FFmpeg is ready.",
+    "installed": "Installed"
   },
   "errors": {
     "db_error": "A database problem occurred.",
@@ -542,7 +549,7 @@
     "noProviderBody": "Add a transcription provider in API Manager (for example Groq's free tier). The audio file is uploaded to that provider.",
     "pick": "Choose audio file",
     "none": "No file chosen",
-    "limits": "Hosted services accept files up to 25 MB. Larger files are rejected — compress or split them first. Supported: MP3, WAV, M4A, OGG, FLAC, AAC.",
+    "limits": "Files up to 25 MB are uploaded as they are. Larger recordings (up to 2 GB) need FFmpeg (Settings → Tools); they are compressed and split into 10-minute parts automatically.",
     "modelPlaceholder": "Save a model in API Manager",
     "auto": "Auto-detect",
     "paidNote": "This provider is marked as paid — transcription may be billed to your account.",
@@ -557,7 +564,8 @@
     "exportTxt": "Export TXT",
     "exportSrt": "Export SRT",
     "toSubtitles": "Edit in Subtitle Studio",
-    "noTiming": "This model returned text without timestamps, so subtitle export is not available."
+    "noTiming": "This model returned text without timestamps, so subtitle export is not available.",
+    "bigFile": "Large file: it will be compressed with FFmpeg before upload, and is not loaded into the player."
   },
   "subs": {
     "noCues": "No subtitle cues were found in that file.",

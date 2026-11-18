@@ -6,6 +6,7 @@ pub mod media;
 pub mod providers;
 pub mod settings;
 pub mod storage;
+pub mod tools;
 pub mod transcribe;
 pub mod updater;
 pub mod voice;

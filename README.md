@@ -20,7 +20,7 @@ Every push to `main` builds an installer on GitHub Actions and publishes it on t
 ## Honest limits (this version)
 - **Voice cloning:** voice profiles (with a consent statement and sample) can be stored, but **no cloning engine is connected**, so they cannot generate speech yet.
 - **Speaker detection:** not supported.
-- **Hosted transcription** accepts files up to 25 MB; bigger files are refused with a message. Local FFmpeg / whisper.cpp download is not built; use a local Whisper server through the OpenAI-compatible provider instead.
+- **Transcription** uploads files up to 25 MB as they are. Bigger recordings (up to 2 GB) need FFmpeg, which Settings → Tools downloads on request (SHA-256 checked); Kothok then compresses and splits them. whisper.cpp download is not built; use a local Whisper server through the OpenAI-compatible provider instead.
 - **Bangla speech:** Google's *standard* Bangla voices are `bn-IN`; `bn-BD` needs a Gemini-TTS model. Both need a Cloud project with billing. Quality is not guaranteed by Kothok.
 - Provider calls were verified against official documentation and unit-tested for request/response parsing, but **not run against live accounts** in CI. If a provider changes its API, use "Test connection" and the error text to see why.
 - Nothing paid is used silently: paid providers are labelled, and fallback to a paid provider asks first.

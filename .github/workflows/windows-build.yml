@@ -48,6 +48,25 @@ jobs:
       - name: Run subtitle library tests
         run: node --experimental-strip-types tests/srt.test.mjs
 
+      # Proves the FFmpeg download source used by Settings -> Tools still has the expected layout.
+      - name: Verify FFmpeg download source
+        shell: pwsh
+        run: |
+          $url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+          Invoke-WebRequest "$url.sha256" -OutFile ff.sha256
+          Invoke-WebRequest $url -OutFile ff.zip
+          $expected = ((Get-Content ff.sha256 -Raw).Trim() -split "\s+")[0].ToLower()
+          $actual = (Get-FileHash ff.zip -Algorithm SHA256).Hash.ToLower()
+          if ($expected -ne $actual) { throw "checksum mismatch: $expected vs $actual" }
+          Expand-Archive ff.zip -DestinationPath ffx
+          $exe = Get-ChildItem ffx -Recurse -Filter ffmpeg.exe | Where-Object { $_.FullName -like "*\bin\ffmpeg.exe" } | Select-Object -First 1
+          if (-not $exe) { throw "bin/ffmpeg.exe not found" }
+          & $exe.FullName -version | Select-Object -First 1
+          # Round trip the same shrink command the app uses.
+          & $exe.FullName -f lavfi -i "sine=frequency=440:duration=3" -y t.wav
+          & $exe.FullName -y -i t.wav -vn -ac 1 -ar 16000 -b:a 32k t.mp3
+          if (-not (Test-Path t.mp3)) { throw "ffmpeg conversion failed" }
+
       - name: Write installer checksum
         shell: pwsh
         run: |

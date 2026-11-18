@@ -35,7 +35,7 @@ export default function AudioPage() {
   const [providerId, setProviderId] = useState("");
   const provider = ready.find((p) => p.id === providerId) ?? defaultProvider({ providers, defaults }, "stt") ?? ready[0];
 
-  const [file, setFile] = useState<{ media: string; label: string; url: string } | null>(null);
+  const [file, setFile] = useState<{ media: string; label: string; url: string; big: boolean } | null>(null);
   const [model, setModel] = useState("");
   const [lang, setLang] = useState("bn");
   const [busy, setBusy] = useState(false);
@@ -52,13 +52,12 @@ export default function AudioPage() {
 
   const pick = async () => {
     try {
-      const f = await api.importFile("Audio", ["mp3", "wav", "m4a", "ogg", "flac", "aac"]);
+      const f = await api.importAudio();
       if (!f) return;
-      const ext = f.name.split(".").pop() ?? "mp3";
-      const media = await api.saveMedia(ext, f.dataB64);
-      const url = await audioUrl(media);
+      // Long recordings are not loaded into the player (it would need the whole file in memory).
+      const url = f.size <= 40 * 1024 * 1024 ? await audioUrl(f.file) : "";
       if (file) void api.discardMedia(file.media).catch(() => undefined);
-      setFile({ media, label: f.name, url });
+      setFile({ media: f.file, label: f.label, url, big: f.size > 25 * 1024 * 1024 });
       setResult(null);
       setText("");
     } catch (e) {
@@ -113,7 +112,8 @@ export default function AudioPage() {
           </Button>
           <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{file?.label ?? t("audio.none")}</span>
         </div>
-        {file && <audio controls src={file.url} className="mt-3 w-full" />}
+        {file && file.url && <audio controls src={file.url} className="mt-3 w-full" />}
+        {file?.big && <p className="mt-2 text-xs text-amber-500">{t("audio.bigFile")}</p>}
         <p className="mt-3 text-xs text-muted-foreground">{t("audio.limits")}</p>
       </div>
 

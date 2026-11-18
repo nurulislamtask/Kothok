@@ -21,6 +21,7 @@ tauri-plugin-dialog = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
 base64 = "0.22"
 sha2 = "0.10"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 keyring = "3"
 
 [target.'cfg(windows)'.dependencies]

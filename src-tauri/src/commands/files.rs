@@ -112,3 +112,58 @@ pub async fn import_file(
         data_b64: STANDARD.encode(bytes),
     }))
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportedAudio {
+    /// Name inside the media folder.
+    pub file: String,
+    /// The original file name, for display.
+    pub label: String,
+    pub size: u64,
+}
+
+const MAX_AUDIO_IMPORT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
+/// Pick an audio file and copy it straight into the media folder, so long recordings never
+/// pass through the web view.
+#[tauri::command]
+pub async fn import_audio(
+    app: AppHandle,
+    paths: tauri::State<'_, crate::paths::AppPaths>,
+) -> Result<Option<ImportedAudio>, AppError> {
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter(
+            "Audio",
+            &[
+                "mp3", "wav", "m4a", "ogg", "flac", "aac", "mp4", "mkv", "webm",
+            ],
+        )
+        .blocking_pick_file();
+    let Some(fp) = picked else { return Ok(None) };
+    let src = fp
+        .into_path()
+        .map_err(|e| AppError::Invalid(e.to_string()))?;
+    let size = std::fs::metadata(&src)?.len();
+    if size > MAX_AUDIO_IMPORT_BYTES {
+        return Err(AppError::Invalid("file is larger than 2 GB".into()));
+    }
+    let ext = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| crate::paths::clean_ext(e).unwrap_or_else(|_| "bin".into()))
+        .unwrap_or_else(|| "bin".into());
+    let name = format!("{}.{}", crate::paths::random_stem(), ext);
+    std::fs::copy(&src, paths.media_path(&name)?)?;
+    let label = src
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "audio".into());
+    Ok(Some(ImportedAudio {
+        file: name,
+        label,
+        size,
+    }))
+}

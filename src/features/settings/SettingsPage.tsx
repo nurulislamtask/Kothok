@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
-import { api, type AppInfo, type Category, type StorageInfo } from "../../lib/api";
+import { api, type AppInfo, type Category, type StorageInfo, type ToolsStatus } from "../../lib/api";
 import { errorText } from "../../lib/errors";
 import { APP_VERSION } from "../../lib/version";
 import { useProviders } from "../../stores/providers";
@@ -78,6 +78,8 @@ export default function SettingsPage() {
   const [storage, setStorage] = useState<StorageInfo | null>(null);
   const [confirmClean, setConfirmClean] = useState(false);
   const [installing, setInstalling] = useState(false);
+  const [tools, setTools] = useState<ToolsStatus | null>(null);
+  const [ffBusy, setFfBusy] = useState(false);
 
   const loadStorage = () => {
     api.storageInfo().then(setStorage).catch(() => setStorage(null));
@@ -85,6 +87,7 @@ export default function SettingsPage() {
   useEffect(() => {
     api.appInfo().then(setInfo).catch(() => setInfo(null));
     loadStorage();
+    api.toolsStatus().then(setTools).catch(() => setTools(null));
   }, []);
 
   const checkNow = async () => {
@@ -165,6 +168,29 @@ export default function SettingsPage() {
         >
           <Button size="sm" disabled={!storage || storage.unusedFiles === 0} onClick={() => setConfirmClean(true)}>
             {t("settings.cleanUnused")}
+          </Button>
+        </Row>
+      </Section>
+
+      <Section title={t("settings.tools")}>
+        <Row
+          title="FFmpeg"
+          hint={tools?.ffmpeg ? t(tools.ffmpegSource === "system" ? "settings.ffmpegSystem" : "settings.ffmpegApp") : t("settings.ffmpegHint")}
+        >
+          <Button
+            size="sm"
+            disabled={ffBusy || tools?.ffmpeg === true}
+            onClick={() => {
+              setFfBusy(true);
+              api
+                .installFfmpeg()
+                .then(() => api.toolsStatus().then(setTools))
+                .then(() => toast.success(t("settings.ffmpegDone")))
+                .catch((e: unknown) => toast.error(errorText(e)))
+                .finally(() => setFfBusy(false));
+            }}
+          >
+            {tools?.ffmpeg ? t("settings.installed") : ffBusy ? t("settings.downloading") : t("settings.ffmpegInstall")}
           </Button>
         </Row>
       </Section>

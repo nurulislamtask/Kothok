@@ -6,12 +6,13 @@ use tauri::State;
 
 use super::files::mime_for;
 use super::providers::load_provider;
+use super::tools;
 use crate::credentials;
 use crate::db::Db;
 use crate::error::AppError;
 use crate::paths::AppPaths;
 use crate::providers::saved_model;
-use crate::providers::stt::{self, SttOutput};
+use crate::providers::stt::{self, SttOutput, SttSegment};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,11 +33,20 @@ pub async fn stt_transcribe(
 ) -> Result<SttOutput, AppError> {
     let path = paths.media_path(&input.file)?;
     let size = std::fs::metadata(&path)?.len() as usize;
-    if size > stt::MAX_UPLOAD_BYTES {
-        return Err(AppError::Invalid(
-            "audio is larger than 25 MB; compress or split it first".into(),
-        ));
-    }
+    let too_big = size > stt::MAX_UPLOAD_BYTES;
+    let ffmpeg = if too_big {
+        Some(
+            tools::ffmpeg_path(&paths)
+                .ok_or_else(|| {
+                    AppError::Invalid(
+                        "audio is larger than 25 MB; install FFmpeg in Settings → Tools so it can be compressed".into(),
+                    )
+                })?
+                .0,
+        )
+    } else {
+        None
+    };
     let (record, model) = {
         let conn = db.0.lock().map_err(|_| AppError::Lock)?;
         let id = match input.provider_id.clone().filter(|s| !s.is_empty()) {
@@ -64,21 +74,32 @@ pub async fn stt_transcribe(
         (rec, model)
     };
     let key = credentials::get(&record.id)?;
-    let bytes = std::fs::read(&path)?;
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    let name = format!("audio.{ext}");
-
     let started = Instant::now();
-    let result = stt::transcribe(
-        &record,
-        key.as_deref(),
-        &model,
-        input.lang.as_deref(),
-        &name,
-        mime_for(ext),
-        bytes,
-    )
-    .await;
+    let result = if let Some(ff) = ffmpeg {
+        transcribe_large(
+            &record,
+            key.as_deref(),
+            &model,
+            input.lang.as_deref(),
+            &ff,
+            &path,
+            &paths,
+        )
+        .await
+    } else {
+        let bytes = std::fs::read(&path)?;
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        stt::transcribe(
+            &record,
+            key.as_deref(),
+            &model,
+            input.lang.as_deref(),
+            &format!("audio.{ext}"),
+            mime_for(ext),
+            bytes,
+        )
+        .await
+    };
     if let Ok(conn) = db.0.lock() {
         let (status, code) = match &result {
             Ok(_) => ("ok", None),
@@ -91,4 +112,72 @@ pub async fn stt_transcribe(
         );
     }
     result
+}
+
+/// Shrink/split with FFmpeg, transcribe each piece, then stitch the timestamps back together.
+async fn transcribe_large(
+    record: &crate::providers::ProviderRecord,
+    key: Option<&str>,
+    model: &str,
+    lang: Option<&str>,
+    ffmpeg: &std::path::Path,
+    input: &std::path::Path,
+    paths: &AppPaths,
+) -> Result<SttOutput, AppError> {
+    let work = paths
+        .temp
+        .join(format!("stt-{}", crate::paths::random_stem()));
+    std::fs::create_dir_all(&work)?;
+    let (ff, inp, wd) = (ffmpeg.to_path_buf(), input.to_path_buf(), work.clone());
+    let pieces = tauri::async_runtime::spawn_blocking(move || {
+        tools::prepare_audio(&ff, &inp, &wd, (stt::MAX_UPLOAD_BYTES as u64) - 1024 * 1024)
+    })
+    .await
+    .map_err(|e| AppError::Invalid(e.to_string()))
+    .and_then(|r| r);
+    let pieces = match pieces {
+        Ok(p) => p,
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&work);
+            return Err(e);
+        }
+    };
+    let mut texts = Vec::new();
+    let mut segments: Vec<SttSegment> = Vec::new();
+    let mut language = None;
+    let mut has_timing = true;
+    let mut failure = None;
+    for (file, offset) in pieces {
+        let step = async {
+            let bytes = std::fs::read(&file)?;
+            stt::transcribe(record, key, model, lang, "audio.mp3", "audio/mpeg", bytes).await
+        }
+        .await;
+        match step {
+            Ok(out) => {
+                language = language.or(out.language);
+                has_timing &= out.has_timing;
+                texts.push(out.text);
+                segments.extend(out.segments.into_iter().map(|s| SttSegment {
+                    start_ms: s.start_ms + offset,
+                    end_ms: s.end_ms + offset,
+                    text: s.text,
+                }));
+            }
+            Err(e) => {
+                failure = Some(e);
+                break;
+            }
+        }
+    }
+    let _ = std::fs::remove_dir_all(&work);
+    if let Some(e) = failure {
+        return Err(e);
+    }
+    Ok(SttOutput {
+        text: texts.join(" "),
+        language,
+        segments,
+        has_timing,
+    })
 }
