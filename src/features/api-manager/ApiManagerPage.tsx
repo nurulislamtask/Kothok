@@ -121,7 +121,7 @@ function ProviderForm({ existing, onClose }: { existing?: Provider; onClose: () 
       <Field label={t("api.name")}>
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      {adapter !== "gemini" && adapter !== "gemini_image" && (
+      {!["gemini", "gemini_image", "google_tts"].includes(adapter) && (
         <Field label={t("api.endpoint")} hint={t("api.endpointHint")}>
           <Input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://…/v1" />
         </Field>

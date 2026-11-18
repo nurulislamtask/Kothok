@@ -44,6 +44,15 @@ pub fn run() {
             commands::library::delete_asset,
             commands::files::export_file,
             commands::files::import_file,
+            commands::voice::tts_list_voices,
+            commands::voice::tts_synthesize,
+            commands::voice::tts_history_list,
+            commands::voice::tts_history_delete,
+            commands::voice::voice_favorites,
+            commands::voice::voice_favorite_set,
+            commands::voice::voice_profile_create,
+            commands::voice::voice_profile_list,
+            commands::voice::voice_profile_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Kothok");

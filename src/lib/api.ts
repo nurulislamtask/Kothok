@@ -130,6 +130,58 @@ export interface PickedFile {
   dataB64: string;
 }
 
+
+export interface VoiceInfo {
+  id: string;
+  name: string;
+  languageCodes: string[];
+  gender: string | null;
+}
+export interface SynthInput {
+  providerId: string;
+  voiceId: string;
+  lang?: string;
+  model?: string;
+  text: string;
+  speed?: number;
+  pitch?: number;
+}
+export interface SynthOutput {
+  historyId: number;
+  file: string;
+  providerName: string;
+  chunks: number;
+}
+export interface TtsHistoryItem {
+  id: number;
+  providerId: string | null;
+  voiceId: string | null;
+  lang: string | null;
+  textPreview: string | null;
+  audioPath: string | null;
+  createdAt: string;
+}
+export interface VoiceFavorite {
+  providerId: string;
+  voiceId: string;
+}
+export interface VoiceProfile {
+  id: number;
+  name: string;
+  engine: string;
+  samplePath: string;
+  lang: string | null;
+  consentConfirmedAt: string;
+  consentStatement: string;
+}
+export interface VoiceProfileInput {
+  name: string;
+  lang?: string;
+  sampleFile: string;
+  consentConfirmed: boolean;
+  consentStatement: string;
+}
+
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauri()) {
     throw { code: "not_desktop", message: "This action needs the Kothok desktop app." };
@@ -165,6 +217,18 @@ export const api = {
   generateImage: (input: ImageGenInput) => call<ImageGenOutput>("ai_generate_image", { input }),
   saveMedia: (ext: string, dataB64: string) => call<string>("save_media", { ext, dataB64 }),
   readMedia: (path: string) => call<PickedFile>("read_media", { path }),
+
+  ttsListVoices: (providerId: string, lang?: string) =>
+    call<VoiceInfo[]>("tts_list_voices", { providerId, lang: lang ?? null }),
+  ttsSynthesize: (input: SynthInput) => call<SynthOutput>("tts_synthesize", { input }),
+  ttsHistory: () => call<TtsHistoryItem[]>("tts_history_list"),
+  ttsHistoryDelete: (id: number) => call<void>("tts_history_delete", { id }),
+  voiceFavorites: () => call<VoiceFavorite[]>("voice_favorites"),
+  voiceFavoriteSet: (providerId: string, voiceId: string, favorite: boolean) =>
+    call<void>("voice_favorite_set", { providerId, voiceId, favorite }),
+  voiceProfiles: () => call<VoiceProfile[]>("voice_profile_list"),
+  voiceProfileCreate: (input: VoiceProfileInput) => call<VoiceProfile>("voice_profile_create", { input }),
+  voiceProfileDelete: (id: number) => call<void>("voice_profile_delete", { id }),
 
   exportFile: (suggestedName: string, filterName: string, extensions: string[], dataB64: string) =>
     call<string | null>("export_file", { suggestedName, filterName, extensions, dataB64 }),

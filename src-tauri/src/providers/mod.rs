@@ -6,6 +6,7 @@ pub mod gemini;
 mod http;
 pub mod image_gen;
 pub mod openai_compat;
+pub mod tts;
 
 use serde::{Deserialize, Serialize};
 
@@ -17,13 +18,14 @@ pub fn adapters_for(category: &str) -> &'static [&'static str] {
     match category {
         "text" => &["gemini", "openai_compat"],
         "image" => &["gemini_image", "openai_images"],
+        "tts" => &["google_tts", "openai_tts"],
         _ => &[],
     }
 }
 
 /// Adapters that talk to a user-supplied OpenAI-style base URL.
 pub fn needs_endpoint(adapter: &str) -> bool {
-    matches!(adapter, "openai_compat" | "openai_images")
+    matches!(adapter, "openai_compat" | "openai_images" | "openai_tts")
 }
 pub const CATEGORIES: &[&str] = &["text", "image", "tts", "clone", "stt"];
 pub const COST_CLASSES: &[&str] = &["local", "free", "free_tier", "paid"];
@@ -109,7 +111,11 @@ pub async fn list_models(
 ) -> Result<Vec<ModelInfo>, AppError> {
     match p.adapter.as_str() {
         "gemini" | "gemini_image" => gemini::list_models(p, key).await,
-        "openai_compat" | "openai_images" => openai_compat::list_models(p, key).await,
+        "openai_compat" | "openai_images" | "openai_tts" => {
+            openai_compat::list_models(p, key).await
+        }
+        // Google Cloud TTS has no model list; a successful voice listing proves the key works.
+        "google_tts" => tts::check_access(p, key).await.map(|_| Vec::new()),
         other => Err(AppError::Invalid(format!("unknown adapter {other}"))),
     }
 }

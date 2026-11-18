@@ -22,9 +22,12 @@ export const PRESETS: readonly Preset[] = [
   { id: "gemini_image", category: "image", adapter: "gemini_image", endpoint: "", costClass: "paid" },
   { id: "openai_images", category: "image", adapter: "openai_images", endpoint: "https://api.openai.com/v1", costClass: "paid" },
   { id: "custom_image", category: "image", adapter: "openai_images", endpoint: "", costClass: "paid" },
+  { id: "google_tts", category: "tts", adapter: "google_tts", endpoint: "", costClass: "paid" },
+  { id: "openai_tts", category: "tts", adapter: "openai_tts", endpoint: "https://api.openai.com/v1", costClass: "paid" },
+  { id: "custom_tts", category: "tts", adapter: "openai_tts", endpoint: "", costClass: "paid" },
 ];
 
 /** Provider categories that have working adapters in this build. */
-export const CATEGORIES: readonly Category[] = ["text", "image"];
+export const CATEGORIES: readonly Category[] = ["text", "image", "tts"];
 
 export const COST_CLASSES: readonly CostClass[] = ["local", "free", "free_tier", "paid"];
