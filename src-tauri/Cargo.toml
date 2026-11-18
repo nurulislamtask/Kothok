@@ -20,6 +20,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 tauri-plugin-dialog = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
 base64 = "0.22"
+sha2 = "0.10"
 keyring = "3"
 
 [target.'cfg(windows)'.dependencies]

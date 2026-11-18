@@ -50,3 +50,12 @@
     @apply outline-2 outline-offset-2 outline-primary;
   }
 }
+
+/* Performance mode for low-end PCs: no animations or transitions. */
+.low-end *,
+.low-end *::before,
+.low-end *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}

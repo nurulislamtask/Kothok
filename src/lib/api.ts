@@ -200,6 +200,25 @@ export interface TranscribeOutput {
   hasTiming: boolean;
 }
 
+export interface AppInfo {
+  version: string;
+  build: number;
+  dataDir: string;
+}
+export interface UpdateInfo {
+  build: number;
+  tag: string;
+  installerUrl: string;
+  size: number;
+  notes: string;
+}
+export interface StorageInfo {
+  mediaFiles: number;
+  mediaBytes: number;
+  unusedFiles: number;
+  unusedBytes: number;
+}
+
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauri()) {
     throw { code: "not_desktop", message: "This action needs the Kothok desktop app." };
@@ -250,6 +269,12 @@ export const api = {
 
   transcribe: (input: TranscribeInput) => call<TranscribeOutput>("stt_transcribe", { input }),
   discardMedia: (path: string) => call<void>("discard_media", { path }),
+
+  appInfo: () => call<AppInfo>("app_info"),
+  checkUpdate: () => call<UpdateInfo | null>("check_update"),
+  installUpdate: (installerUrl: string) => call<void>("install_update", { installerUrl }),
+  storageInfo: () => call<StorageInfo>("storage_info"),
+  cleanUnusedMedia: () => call<number>("clean_unused_media"),
 
   exportFile: (suggestedName: string, filterName: string, extensions: string[], dataB64: string) =>
     call<string | null>("export_file", { suggestedName, filterName, extensions, dataB64 }),

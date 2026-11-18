@@ -7,6 +7,9 @@ import StatusBar from "./StatusBar";
 import ComingSoon from "../features/ComingSoon";
 import Toaster from "../components/Toaster";
 import { useProviders } from "../stores/providers";
+import { useUpdate } from "../stores/update";
+import { toast } from "../stores/toast";
+import i18n from "../i18n";
 
 export default function App() {
   const hydrated = useUi((s) => s.hydrated);
@@ -18,6 +21,18 @@ export default function App() {
     void hydrate();
     void refreshProviders();
   }, [hydrate, refreshProviders]);
+
+  const autoUpdate = useUi((s) => s.autoUpdate);
+  // One quiet update check per launch (desktop builds only; failures are silent here).
+  useEffect(() => {
+    if (!hydrated || !autoUpdate) return;
+    void useUpdate
+      .getState()
+      .check()
+      .then((info) => {
+        if (info) toast.info(i18n.t("settings.updateAvailableToast", { build: info.build }));
+      });
+  }, [hydrated, autoUpdate]);
 
   // Avoid a flash of the wrong theme/language before settings load.
   if (!hydrated) return null;
