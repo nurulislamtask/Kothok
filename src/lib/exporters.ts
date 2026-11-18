@@ -34,3 +34,9 @@ export async function exportText(text: string, baseName: string, format: TextFor
   const label = format === "md" ? "Markdown" : "Text";
   return api.exportFile(name, label, [format], textToBase64(text));
 }
+
+/** Save subtitles/transcripts as plain text. `bom` adds a UTF-8 byte-order mark for old players. */
+export async function exportPlain(text: string, baseName: string, ext: "srt" | "vtt" | "txt", bom: boolean): Promise<string | null> {
+  const name = `${safeName(baseName, "kothok")}.${ext}`;
+  return api.exportFile(name, ext.toUpperCase(), [ext], textToBase64((bom ? "﻿" : "") + text));
+}

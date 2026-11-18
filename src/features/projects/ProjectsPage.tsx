@@ -6,6 +6,7 @@ import { errorText } from "../../lib/errors";
 import { exportText } from "../../lib/exporters";
 import { cn, formatDate } from "../../lib/utils";
 import { useContent } from "../../stores/content";
+import { useSubs } from "../../stores/subtitles";
 import { toast } from "../../stores/toast";
 import { useUi } from "../../stores/ui";
 import { loadDesign } from "../thumbnail/imageIo";
@@ -81,9 +82,12 @@ export default function ProjectsPage() {
   };
 
   const openAsset = (a: Asset) => {
-    if (a.kind === "content") {
+    if (a.kind === "content" || a.kind === "transcript") {
       useContent.getState().loadAsset(a);
       setRoute("content");
+    } else if (a.kind === "subtitle") {
+      useSubs.getState().loadAsset(a);
+      setRoute("subtitles");
     } else if (a.kind === "thumbnail") {
       loadDesign(a)
         .then(() => setRoute("thumbnail"))
@@ -167,7 +171,7 @@ export default function ProjectsPage() {
                     <div className="truncate text-sm font-medium">{a.title || t("projects.untitled")}</div>
                     <div className="text-xs text-muted-foreground">{formatDate(a.createdAt, i18n.language)}</div>
                   </div>
-                  {(a.kind === "content" || a.kind === "thumbnail") && (
+                  {(a.kind === "content" || a.kind === "thumbnail" || a.kind === "subtitle" || a.kind === "transcript") && (
                     <Button size="sm" onClick={() => openAsset(a)}>
                       {t("projects.open")}
                     </Button>

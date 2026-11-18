@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
@@ -53,9 +54,13 @@ export function Select({ className, children, ...rest }: SelectHTMLAttributes<HT
   );
 }
 
-export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea(
+  { className, ...rest },
+  ref,
+) {
   return (
     <textarea
+      ref={ref}
       className={cn(
         "w-full rounded-lg border bg-muted/40 px-3 py-2 text-sm placeholder:text-muted-foreground disabled:opacity-50",
         className,
@@ -63,7 +68,7 @@ export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLText
       {...rest}
     />
   );
-}
+});
 
 export function Field({
   label,

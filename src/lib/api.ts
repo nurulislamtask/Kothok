@@ -182,6 +182,24 @@ export interface VoiceProfileInput {
   consentStatement: string;
 }
 
+export interface SttSegment {
+  startMs: number;
+  endMs: number;
+  text: string;
+}
+export interface TranscribeInput {
+  providerId?: string;
+  model?: string;
+  lang?: string;
+  file: string;
+}
+export interface TranscribeOutput {
+  text: string;
+  language: string | null;
+  segments: SttSegment[];
+  hasTiming: boolean;
+}
+
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauri()) {
     throw { code: "not_desktop", message: "This action needs the Kothok desktop app." };
@@ -229,6 +247,9 @@ export const api = {
   voiceProfiles: () => call<VoiceProfile[]>("voice_profile_list"),
   voiceProfileCreate: (input: VoiceProfileInput) => call<VoiceProfile>("voice_profile_create", { input }),
   voiceProfileDelete: (id: number) => call<void>("voice_profile_delete", { id }),
+
+  transcribe: (input: TranscribeInput) => call<TranscribeOutput>("stt_transcribe", { input }),
+  discardMedia: (path: string) => call<void>("discard_media", { path }),
 
   exportFile: (suggestedName: string, filterName: string, extensions: string[], dataB64: string) =>
     call<string | null>("export_file", { suggestedName, filterName, extensions, dataB64 }),

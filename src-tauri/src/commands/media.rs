@@ -39,3 +39,26 @@ pub fn read_media(paths: State<'_, AppPaths>, path: String) -> Result<PickedFile
         data_b64: STANDARD.encode(bytes),
     })
 }
+
+/// Delete a media file the user picked but never saved anywhere. Files that a project asset,
+/// voice profile or speech history entry still points at are left alone.
+#[tauri::command]
+pub fn discard_media(
+    db: State<'_, crate::db::Db>,
+    paths: State<'_, AppPaths>,
+    path: String,
+) -> Result<(), AppError> {
+    let p = paths.media_path(&path)?;
+    let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+    let used: i64 = conn.query_row(
+        "SELECT (SELECT COUNT(*) FROM assets WHERE file_path = ?1)
+              + (SELECT COUNT(*) FROM voice_profiles WHERE sample_path = ?1)
+              + (SELECT COUNT(*) FROM tts_history WHERE audio_path = ?1)",
+        [&path],
+        |r| r.get(0),
+    )?;
+    if used == 0 {
+        let _ = std::fs::remove_file(p);
+    }
+    Ok(())
+}

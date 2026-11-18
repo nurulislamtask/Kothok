@@ -106,7 +106,7 @@
     "add": "Add provider",
     "addTitle": "Add provider",
     "editTitle": "Edit provider",
-    "scopeNote": "Text, image and voice providers work now. Transcription providers arrive in a later release.",
+    "scopeNote": "Text, image, voice and transcription providers work now.",
     "textProviders": "Text generation",
     "empty": "No providers yet",
     "emptyHint": "Add Gemini, OpenRouter, a local model server or any OpenAI-compatible API to start generating content.",
@@ -209,13 +209,30 @@
       "custom_tts": {
         "name": "Custom (OpenAI-compatible speech)",
         "note": "Any server that implements /audio/speech, including servers running on this PC."
+      },
+      "groq_stt": {
+        "name": "Groq (Whisper)",
+        "note": "Whisper models, free tier with rate limits and a 25 MB upload limit. Save a model id such as whisper-large-v3-turbo (check Groq's model list)."
+      },
+      "openai_stt": {
+        "name": "OpenAI (transcription)",
+        "note": "Paid API, billed per audio minute. Save a transcription model id from OpenAI's documentation."
+      },
+      "local_stt": {
+        "name": "Local Whisper server",
+        "note": "A Whisper server on this PC that copies the OpenAI /audio/transcriptions API. Adjust the address and port to match your server."
+      },
+      "custom_stt": {
+        "name": "Custom (OpenAI-compatible transcription)",
+        "note": "Any server that implements /audio/transcriptions."
       }
     },
     "category": "Provider type",
     "categories": {
       "text": "Text generation",
       "image": "Image generation",
-      "tts": "Voice (text to speech)"
+      "tts": "Voice (text to speech)",
+      "stt": "Transcription (speech to text)"
     }
   },
   "content": {
@@ -491,5 +508,56 @@
     "statementHint": "e.g. who the voice belongs to and that they allow this use (at least 10 characters).",
     "consent": "I confirm this voice is mine or I have the speaker's explicit permission to use it.",
     "created": "Voice profile saved"
+  },
+  "audio": {
+    "noProvider": "No transcription provider is set up",
+    "noProviderBody": "Add a transcription provider in API Manager (for example Groq's free tier). The audio file is uploaded to that provider.",
+    "pick": "Choose audio file",
+    "none": "No file chosen",
+    "limits": "Hosted services accept files up to 25 MB. Larger files are rejected — compress or split them first. Supported: MP3, WAV, M4A, OGG, FLAC, AAC.",
+    "modelPlaceholder": "Save a model in API Manager",
+    "auto": "Auto-detect",
+    "paidNote": "This provider is marked as paid — transcription may be billed to your account.",
+    "noSpeakers": "Speaker detection is not supported in this version.",
+    "transcribe": "Transcribe",
+    "transcribing": "Transcribing…",
+    "result": "Transcript",
+    "detected": "Detected language: {{lang}}",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Could not copy to the clipboard.",
+    "exportTxt": "Export TXT",
+    "exportSrt": "Export SRT",
+    "toSubtitles": "Edit in Subtitle Studio",
+    "noTiming": "This model returned text without timestamps, so subtitle export is not available."
+  },
+  "subs": {
+    "noCues": "No subtitle cues were found in that file.",
+    "badTime": "Use the format HH:MM:SS,mmm",
+    "empty": "No subtitles open",
+    "emptyHint": "Open an SRT or VTT file, transcribe audio first, or start from a blank track.",
+    "open": "Open SRT / VTT",
+    "startBlank": "Start blank",
+    "titlePlaceholder": "Title",
+    "loadAudio": "Load audio to preview",
+    "bom": "UTF-8 BOM",
+    "shift": "Shift all (ms)",
+    "applyShift": "Shift",
+    "find": "Find",
+    "replaceWith": "Replace with",
+    "matchCase": "Match case",
+    "replaceAll": "Replace all",
+    "replaced": "{{count}} replacements",
+    "count": "{{count}} subtitles",
+    "overlaps": "{{count}} with overlapping or invalid times",
+    "unsaved": "Unsaved changes",
+    "inProject": "Saved in a project",
+    "start": "Start time",
+    "end": "End time",
+    "play": "Play",
+    "split": "Split at cursor",
+    "splitHint": "Click inside the text where to split, then press this",
+    "merge": "Merge with next",
+    "add": "Add subtitle"
   }
 }

@@ -5,4 +5,5 @@ pub mod library;
 pub mod media;
 pub mod providers;
 pub mod settings;
+pub mod transcribe;
 pub mod voice;
