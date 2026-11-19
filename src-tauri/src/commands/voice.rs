@@ -18,7 +18,7 @@ const MAX_TEXT_CHARS: usize = 100_000;
 fn tts_provider(db: &Db, id: &str) -> Result<crate::providers::ProviderRecord, AppError> {
     let conn = db.0.lock().map_err(|_| AppError::Lock)?;
     let rec = load_provider(&conn, id)?;
-    if rec.category != "tts" || !rec.enabled {
+    if !matches!(rec.category.as_str(), "tts" | "clone") || !rec.enabled {
         return Err(AppError::Invalid("provider cannot generate speech".into()));
     }
     Ok(rec)
@@ -31,6 +31,23 @@ pub async fn tts_list_voices(
     lang: Option<String>,
 ) -> Result<Vec<VoiceInfo>, AppError> {
     let rec = tts_provider(&db, &provider_id)?;
+    if rec.adapter == "elevenlabs_clone" {
+        // Cloned voices are the user's own profiles that were cloned on this provider.
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        let mut stmt = conn.prepare(
+            "SELECT remote_voice_id, name, lang FROM voice_profiles
+             WHERE remote_provider_id = ?1 AND remote_voice_id IS NOT NULL ORDER BY name",
+        )?;
+        let rows = stmt.query_map([&rec.id], |r| {
+            Ok(VoiceInfo {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                language_codes: r.get::<_, Option<String>>(2)?.into_iter().collect(),
+                gender: None,
+            })
+        })?;
+        return rows.collect::<Result<Vec<_>, _>>().map_err(Into::into);
+    }
     let key = crate::providers::key_for(&rec)?;
     tts::list_voices(&rec, key.as_deref(), lang.as_deref()).await
 }
@@ -245,6 +262,8 @@ pub struct VoiceProfile {
     pub lang: Option<String>,
     pub consent_confirmed_at: String,
     pub consent_statement: String,
+    pub remote_voice_id: Option<String>,
+    pub remote_provider_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -300,7 +319,8 @@ pub fn voice_profile_create(
 
 fn load_profile(conn: &rusqlite::Connection, id: i64) -> Result<VoiceProfile, AppError> {
     conn.query_row(
-        "SELECT id, name, engine, sample_path, lang, consent_confirmed_at, consent_statement
+        "SELECT id, name, engine, sample_path, lang, consent_confirmed_at, consent_statement,
+                remote_voice_id, remote_provider_id
          FROM voice_profiles WHERE id = ?1",
         [id],
         map_profile,
@@ -317,6 +337,8 @@ fn map_profile(r: &rusqlite::Row<'_>) -> rusqlite::Result<VoiceProfile> {
         lang: r.get(4)?,
         consent_confirmed_at: r.get(5)?,
         consent_statement: r.get(6)?,
+        remote_voice_id: r.get(7)?,
+        remote_provider_id: r.get(8)?,
     })
 }
 
@@ -324,7 +346,8 @@ fn map_profile(r: &rusqlite::Row<'_>) -> rusqlite::Result<VoiceProfile> {
 pub fn voice_profile_list(db: State<'_, Db>) -> Result<Vec<VoiceProfile>, AppError> {
     let conn = db.0.lock().map_err(|_| AppError::Lock)?;
     let mut stmt = conn.prepare(
-        "SELECT id, name, engine, sample_path, lang, consent_confirmed_at, consent_statement
+        "SELECT id, name, engine, sample_path, lang, consent_confirmed_at, consent_statement,
+                remote_voice_id, remote_provider_id
          FROM voice_profiles ORDER BY id DESC",
     )?;
     let rows = stmt.query_map([], map_profile)?;
@@ -332,24 +355,91 @@ pub fn voice_profile_list(db: State<'_, Db>) -> Result<Vec<VoiceProfile>, AppErr
 }
 
 #[tauri::command]
-pub fn voice_profile_delete(
+pub async fn voice_profile_delete(
     db: State<'_, Db>,
     paths: State<'_, AppPaths>,
     id: i64,
 ) -> Result<(), AppError> {
-    let conn = db.0.lock().map_err(|_| AppError::Lock)?;
-    let sample: Option<String> = conn
-        .query_row(
-            "SELECT sample_path FROM voice_profiles WHERE id = ?1",
+    let (sample, remote_voice, remote_provider) = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        conn.query_row(
+            "SELECT sample_path, remote_voice_id, remote_provider_id FROM voice_profiles WHERE id = ?1",
             [id],
-            |r| r.get(0),
+            |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, Option<String>>(2)?)),
         )
-        .ok();
-    conn.execute("DELETE FROM voice_profiles WHERE id = ?1", [id])?;
-    if let Some(s) = sample {
-        if let Ok(p) = paths.media_path(&s) {
-            let _ = std::fs::remove_file(p);
+        .map_err(AppError::from)?
+    };
+    // Remove the cloned voice from the service too (best effort: the local profile goes either way).
+    if let (Some(voice), Some(pid)) = (remote_voice, remote_provider) {
+        let rec = {
+            let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+            load_provider(&conn, &pid).ok()
+        };
+        if let Some(rec) = rec {
+            if let Ok(key) = crate::providers::key_for(&rec) {
+                let _ = crate::providers::elevenlabs::delete_voice(key.as_deref(), &voice).await;
+            }
         }
     }
+    {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        conn.execute("DELETE FROM voice_profiles WHERE id = ?1", [id])?;
+    }
+    if let Ok(p) = paths.media_path(&sample) {
+        let _ = std::fs::remove_file(p);
+    }
     Ok(())
+}
+
+/// Upload the consented sample to a cloning provider and keep the resulting voice id.
+#[tauri::command]
+pub async fn voice_profile_clone(
+    db: State<'_, Db>,
+    paths: State<'_, AppPaths>,
+    profile_id: i64,
+    provider_id: String,
+) -> Result<VoiceProfile, AppError> {
+    let rec = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        load_provider(&conn, &provider_id)?
+    };
+    if rec.category != "clone" || !rec.enabled {
+        return Err(AppError::Invalid("provider cannot clone voices".into()));
+    }
+    let profile = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        load_profile(&conn, profile_id)?
+    };
+    if profile.consent_statement.trim().chars().count() < 10 {
+        return Err(AppError::Invalid(
+            "consent is missing for this profile".into(),
+        ));
+    }
+    if profile.remote_voice_id.is_some() {
+        return Err(AppError::Invalid("this profile is already cloned".into()));
+    }
+    let path = paths.media_path(&profile.sample_path)?;
+    let size = std::fs::metadata(&path)?.len();
+    if size > 10 * 1024 * 1024 {
+        return Err(AppError::Invalid(
+            "the voice sample must be 10 MB or smaller".into(),
+        ));
+    }
+    let bytes = std::fs::read(&path)?;
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("mp3");
+    let key = crate::providers::key_for(&rec)?;
+    let voice_id = crate::providers::elevenlabs::create_voice(
+        key.as_deref(),
+        &profile.name,
+        &format!("sample.{ext}"),
+        super::files::mime_for(ext),
+        bytes,
+    )
+    .await?;
+    let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+    conn.execute(
+        "UPDATE voice_profiles SET engine = 'elevenlabs', remote_voice_id = ?1, remote_provider_id = ?2 WHERE id = ?3",
+        params![voice_id, rec.id, profile_id],
+    )?;
+    load_profile(&conn, profile_id)
 }

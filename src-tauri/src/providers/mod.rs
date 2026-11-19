@@ -2,6 +2,7 @@
 //! `list_models` / `generate_text` dispatch on `ProviderRecord::adapter`.
 //! Adding a provider = add a module + one match arm here + one entry in ADAPTERS.
 
+pub mod elevenlabs;
 pub mod gemini;
 pub mod gemini_media;
 mod http;
@@ -21,7 +22,8 @@ pub fn adapters_for(category: &str) -> &'static [&'static str] {
         "text" => &["gemini", "openai_compat"],
         "image" => &["gemini_image", "openai_images"],
         "tts" => &["gemini_tts", "google_tts", "openai_tts"],
-        "stt" => &["gemini_stt", "openai_stt"],
+        "stt" => &["gemini_stt", "openai_stt", "whisper_local"],
+        "clone" => &["elevenlabs_clone"],
         _ => &[],
     }
 }
@@ -127,6 +129,7 @@ pub fn linked_adapter(source_adapter: &str, category: &str) -> Option<&'static s
 pub fn pick_default_model(category: &str, models: &[ModelInfo]) -> Option<String> {
     let prefs: &[&str] = match category {
         "text" | "stt" => &["flash", "mini", "turbo", "versatile"],
+        "clone" => &["v3"],
         _ => &[],
     };
     for pref in prefs {
@@ -244,6 +247,15 @@ pub async fn list_models(
         }
         // Google Cloud TTS has no model list; a successful voice listing proves the key works.
         "google_tts" => tts::check_access(p, key).await.map(|_| Vec::new()),
+        "elevenlabs_clone" => elevenlabs::list_models(key).await,
+        // Local engine: the model names whisper.cpp publishes; install them in Settings → Tools.
+        "whisper_local" => Ok(["base", "small", "medium"]
+            .iter()
+            .map(|m| ModelInfo {
+                id: (*m).to_string(),
+                display_name: None,
+            })
+            .collect()),
         other => Err(AppError::Invalid(format!("unknown adapter {other}"))),
     }
 }

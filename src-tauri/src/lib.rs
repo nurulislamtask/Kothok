@@ -52,6 +52,8 @@ pub fn run() {
             commands::transcribe::stt_transcribe,
             commands::tools::tools_status,
             commands::tools::install_ffmpeg,
+            commands::tools::install_whisper_engine,
+            commands::tools::install_whisper_model,
             commands::storage::storage_info,
             commands::storage::clean_unused_media,
             commands::updater::app_info,
@@ -66,6 +68,7 @@ pub fn run() {
             commands::voice::voice_profile_create,
             commands::voice::voice_profile_list,
             commands::voice::voice_profile_delete,
+            commands::voice::voice_profile_clone,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Kothok");

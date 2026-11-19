@@ -6,6 +6,7 @@ use std::path::{Component, Path, PathBuf};
 
 use crate::error::AppError;
 
+#[derive(Clone, Clone)]
 pub struct AppPaths {
     pub media: PathBuf,
     pub tools: PathBuf,

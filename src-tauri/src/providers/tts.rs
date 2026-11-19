@@ -51,6 +51,7 @@ pub async fn check_access(p: &ProviderRecord, key: Option<&str>) -> Result<usize
         "google_tts" => Ok(list_voices(p, key, None).await?.len()),
         "gemini_tts" => super::gemini::list_models(p, key).await.map(|m| m.len()),
         "openai_tts" => openai_compat::list_models(p, key).await.map(|m| m.len()),
+        "elevenlabs_clone" => super::elevenlabs::list_models(key).await.map(|m| m.len()),
         other => Err(AppError::Invalid(format!("unknown adapter {other}"))),
     }
 }
@@ -73,7 +74,8 @@ pub async fn list_voices(
         }
         "gemini_tts" => Ok(super::gemini_media::voices()),
         // OpenAI-style servers have no voice list endpoint; the user supplies a voice id.
-        "openai_tts" => Ok(vec![]),
+        // Cloned voices come from the local profile list (see commands::voice).
+        "openai_tts" | "elevenlabs_clone" => Ok(vec![]),
         other => Err(AppError::Invalid(format!("unknown adapter {other}"))),
     }
 }
@@ -179,6 +181,14 @@ pub async fn synthesize(
         let piece = match p.adapter.as_str() {
             "google_tts" => google_synth(key, req, part).await?,
             "openai_tts" => openai_synth(p, key, req, part).await?,
+            "elevenlabs_clone" => {
+                let model = req
+                    .model
+                    .as_deref()
+                    .filter(|m| !m.trim().is_empty())
+                    .ok_or(AppError::NoModel)?;
+                super::elevenlabs::synthesize(key, &req.voice_id, model, part).await?
+            }
             other => return Err(AppError::Invalid(format!("unknown adapter {other}"))),
         };
         bytes.extend_from_slice(&piece);

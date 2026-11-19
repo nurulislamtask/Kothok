@@ -32,34 +32,6 @@ pub async fn stt_transcribe(
 ) -> Result<SttOutput, AppError> {
     let path = paths.media_path(&input.file)?;
     let size = std::fs::metadata(&path)?.len() as usize;
-    let is_gemini = {
-        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
-        match input.provider_id.as_deref().filter(|s| !s.is_empty()) {
-            Some(id) => load_provider(&conn, id)
-                .map(|r| r.adapter == "gemini_stt")
-                .unwrap_or(false),
-            None => false,
-        }
-    };
-    let limit = if is_gemini {
-        crate::providers::gemini_media::MAX_INLINE_AUDIO_BYTES
-    } else {
-        stt::MAX_UPLOAD_BYTES
-    };
-    let too_big = size > limit;
-    let ffmpeg = if too_big {
-        Some(
-            tools::ffmpeg_path(&paths)
-                .ok_or_else(|| {
-                    AppError::Invalid(
-                        "audio is larger than 25 MB; install FFmpeg in Settings → Tools so it can be compressed".into(),
-                    )
-                })?
-                .0,
-        )
-    } else {
-        None
-    };
     let (record, model) = {
         let conn = db.0.lock().map_err(|_| AppError::Lock)?;
         let id = match input.provider_id.clone().filter(|s| !s.is_empty()) {
@@ -86,9 +58,42 @@ pub async fn stt_transcribe(
             .ok_or(AppError::NoModel)?;
         (rec, model)
     };
+    let is_local = record.adapter == "whisper_local";
+    let limit = if record.adapter == "gemini_stt" {
+        crate::providers::gemini_media::MAX_INLINE_AUDIO_BYTES
+    } else {
+        stt::MAX_UPLOAD_BYTES
+    };
+    let ffmpeg = if is_local || size > limit {
+        Some(
+            tools::ffmpeg_path(&paths)
+                .ok_or_else(|| {
+                    AppError::Invalid(
+                        "FFmpeg is needed for this audio; install it in Settings → Tools".into(),
+                    )
+                })?
+                .0,
+        )
+    } else {
+        None
+    };
     let key = crate::providers::key_for(&record)?;
     let started = Instant::now();
-    let result = if let Some(ff) = ffmpeg {
+    let result = if is_local {
+        let (pp, ff, mm, ll) = (
+            paths.inner().clone(),
+            ffmpeg.clone().unwrap_or_default(),
+            model.clone(),
+            input.lang.clone(),
+        );
+        let src = path.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            tools::whisper_transcribe(&pp, &ff, &mm, ll.as_deref(), &src)
+        })
+        .await
+        .map_err(|e| AppError::Invalid(e.to_string()))
+        .and_then(|r| r)
+    } else if let Some(ff) = ffmpeg {
         transcribe_large(
             &record,
             key.as_deref(),

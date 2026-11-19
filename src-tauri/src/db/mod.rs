@@ -6,7 +6,10 @@ use rusqlite::Connection;
 use crate::error::AppError;
 
 /// Ordered, append-only. Index + 1 is stored in `PRAGMA user_version`.
-const MIGRATIONS: &[&str] = &[include_str!("../../migrations/001_init.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../../migrations/001_init.sql"),
+    include_str!("../../migrations/002_voice_clone.sql"),
+];
 
 pub struct Db(pub Mutex<Connection>);
 
