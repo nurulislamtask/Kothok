@@ -3,16 +3,18 @@ import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, Plus, Star, Trash2, X, Zap } from "lucide-react";
 import {
   api,
+  keyFrom,
   savedModel,
+  sharableCategories,
   type Category,
   type CostClass,
-  type ModelInfo,
   type Provider,
   type ProviderInput,
 } from "../../lib/api";
 import { errorText } from "../../lib/errors";
 import { toast } from "../../stores/toast";
 import { useProviders } from "../../stores/providers";
+import ModelPicker from "../../components/ModelPicker";
 import { Badge, Button, ConfirmModal, Field, Input, Modal, Select } from "../../components/ui/controls";
 import { CATEGORIES, COST_CLASSES, PRESETS } from "./presets";
 
@@ -70,7 +72,17 @@ function ProviderForm({ existing, onClose }: { existing?: Provider; onClose: () 
         settingsJson: existing?.settingsJson ?? null,
         apiKey: apiKey.trim() || undefined,
       };
-      await api.saveProvider(input);
+      const saved = await api.saveProvider(input);
+      // A new Gemini key also serves speech and transcription, so connect those too.
+      if (!existing && adapter === "gemini" && apiKey.trim()) {
+        for (const c of ["tts", "stt"] as const) {
+          try {
+            await api.linkProvider(saved.id, c);
+          } catch {
+            /* the user can still tick it later */
+          }
+        }
+      }
       await refresh();
       toast.success(t("api.saved"));
       onClose();
@@ -121,7 +133,7 @@ function ProviderForm({ existing, onClose }: { existing?: Provider; onClose: () 
       <Field label={t("api.name")}>
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      {!["gemini", "gemini_image", "google_tts"].includes(adapter) && (
+      {!["gemini", "gemini_image", "gemini_tts", "gemini_stt", "google_tts"].includes(adapter) && (
         <Field label={t("api.endpoint")} hint={t("api.endpointHint")}>
           <Input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://…/v1" />
         </Field>
@@ -151,11 +163,64 @@ function ProviderForm({ existing, onClose }: { existing?: Provider; onClose: () 
   );
 }
 
+/** One key, many jobs: tick a job to create a provider for it that reuses this key. */
+function ShareRow({ p }: { p: Provider }) {
+  const { t } = useTranslation();
+  const providers = useProviders((s) => s.providers);
+  const refresh = useProviders((s) => s.refresh);
+  const [busy, setBusy] = useState<Category | null>(null);
+  const borrowed = keyFrom(p);
+  const owner = providers.find((q) => q.id === (borrowed ?? p.id));
+
+  if (borrowed) {
+    return <p className="mt-3 text-xs text-muted-foreground">{t("api.usesKeyOf", { name: owner?.displayName ?? borrowed })}</p>;
+  }
+  const cats = sharableCategories(p);
+  if (cats.length === 0 || !p.hasKey) return null;
+
+  const find = (c: Category) => providers.find((q) => q.category === c && (q.id === p.id || keyFrom(q) === p.id));
+
+  const toggle = async (c: Category, on: boolean) => {
+    setBusy(c);
+    try {
+      if (on) await api.linkProvider(p.id, c);
+      else {
+        const q = find(c);
+        if (q && q.id !== p.id) await api.deleteProvider(q.id);
+      }
+      await refresh();
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="mt-3 border-t pt-3">
+      <div className="text-xs font-medium">{t("api.shareTitle")}</div>
+      <p className="mt-0.5 text-xs text-muted-foreground">{t("api.shareHint")}</p>
+      <div className="mt-2 flex flex-wrap gap-4">
+        {cats.map((c) => (
+          <label key={c} className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={find(c) !== undefined}
+              disabled={busy !== null || c === p.category}
+              onChange={(e) => void toggle(c, e.target.checked)}
+            />
+            {t(`api.categories.${c}`)}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ProviderCard({ p, isDefault }: { p: Provider; isDefault: boolean }) {
   const { t } = useTranslation();
   const refresh = useProviders((s) => s.refresh);
-  const [models, setModels] = useState<ModelInfo[]>([]);
-  const [model, setModel] = useState(savedModel(p));
+  const [model, setModel] = useState("");
   const [testing, setTesting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -186,7 +251,6 @@ function ProviderCard({ p, isDefault }: { p: Provider; isDefault: boolean }) {
       try {
         const r = await api.testProvider(p.id);
         if (r.ok) {
-          setModels(r.models);
           toast.success(t("api.testOk", { count: r.models.length }));
         } else {
           toast.error(t(`errors.${r.errorCode ?? "unknown"}`, { defaultValue: t("errors.unknown") }));
@@ -195,22 +259,6 @@ function ProviderCard({ p, isDefault }: { p: Provider; isDefault: boolean }) {
       } finally {
         setTesting(false);
       }
-    });
-
-  const saveModel = () =>
-    run(async () => {
-      let settings: Record<string, unknown> = {};
-      try {
-        settings = p.settingsJson ? (JSON.parse(p.settingsJson) as Record<string, unknown>) : {};
-      } catch {
-        settings = {};
-      }
-      settings["model"] = model.trim();
-      await api.saveProvider(toInput({ settingsJson: JSON.stringify(settings) }));
-      // The default row caches the model, so refresh it when this is the default provider.
-      if (isDefault) await api.setDefault(p.category, p.id);
-      await refresh();
-      toast.success(t("api.modelSaved"));
     });
 
   const status = p.lastStatus === "ok" ? "ok" : p.lastStatus === "error" ? "bad" : "muted";
@@ -251,23 +299,8 @@ function ProviderCard({ p, isDefault }: { p: Provider; isDefault: boolean }) {
 
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <Field label={t("api.model")} className="min-w-64 flex-1">
-          <Input
-            list={`models-${p.id}`}
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder={t("api.modelPlaceholder")}
-          />
-          <datalist id={`models-${p.id}`}>
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.displayName ?? m.id}
-              </option>
-            ))}
-          </datalist>
+          <ModelPicker provider={p} value={model} onChange={setModel} />
         </Field>
-        <Button disabled={!model.trim() || model.trim() === savedModel(p)} onClick={() => void saveModel()}>
-          {t("api.saveModel")}
-        </Button>
         <Button
           variant={isDefault ? "ghost" : "secondary"}
           disabled={isDefault || !savedModel(p)}
@@ -313,6 +346,8 @@ function ProviderCard({ p, isDefault }: { p: Provider; isDefault: boolean }) {
           </Button>
         )}
       </div>
+
+      <ShareRow p={p} />
 
       {editing && <ProviderForm existing={p} onClose={() => setEditing(false)} />}
       {confirmDelete && (

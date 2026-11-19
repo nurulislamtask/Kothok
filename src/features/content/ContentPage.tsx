@@ -1,3 +1,4 @@
+import ModelPicker from "../../components/ModelPicker";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -17,7 +18,7 @@ import {
   Copy,
   KeyRound,
 } from "lucide-react";
-import { api, isReady, savedModel } from "../../lib/api";
+import { api, isReady } from "../../lib/api";
 import { errorCode, errorDetail, errorText } from "../../lib/errors";
 import { exportText, type TextFormat } from "../../lib/exporters";
 import { cn } from "../../lib/utils";
@@ -370,11 +371,7 @@ export default function ContentPage() {
             </Select>
           </Field>
           <Field label={t("content.model")}>
-            <Input
-              value={settings.model}
-              onChange={(e) => patch({ model: e.target.value })}
-              placeholder={(effective && savedModel(effective)) || t("content.modelPlaceholder")}
-            />
+            <ModelPicker provider={effective} value={settings.model} onChange={(m) => patch({ model: m })} />
           </Field>
           <label className="flex items-start gap-2 text-xs text-muted-foreground">
             <input

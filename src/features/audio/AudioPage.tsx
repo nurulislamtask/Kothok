@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Captions, Copy, FileAudio, FolderPlus, Languages } from "lucide-react";
-import { api, isReady, savedModel, type TranscribeOutput } from "../../lib/api";
+import { api, isReady, type TranscribeOutput } from "../../lib/api";
 import { errorText } from "../../lib/errors";
 import { exportPlain } from "../../lib/exporters";
 import { defaultProvider, useProviders } from "../../stores/providers";
 import { useSubs } from "../../stores/subtitles";
 import { toast } from "../../stores/toast";
 import { useUi } from "../../stores/ui";
-import { Button, Field, Input, Select, Textarea } from "../../components/ui/controls";
+import ModelPicker from "../../components/ModelPicker";
+import { Button, Field, Select, Textarea } from "../../components/ui/controls";
 import SaveToProjectModal from "../../components/SaveToProjectModal";
 import { audioUrl } from "../voice/audioUrl";
 import { formatSrt, type Segment } from "../subtitles/srt";
@@ -128,7 +129,7 @@ export default function AudioPage() {
           </Select>
         </Field>
         <Field label={t("content.model")}>
-          <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={(provider && savedModel(provider)) || t("audio.modelPlaceholder")} />
+          <ModelPicker provider={provider} value={model} onChange={setModel} />
         </Field>
         <Field label={t("voice.language")}>
           <Select value={lang} onChange={(e) => setLang(e.target.value)}>

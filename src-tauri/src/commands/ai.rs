@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::providers::load_provider;
-use crate::credentials;
 use crate::db::Db;
 use crate::error::AppError;
 use crate::providers::{self, saved_model, ProviderRecord, TextRequest};
@@ -82,7 +81,7 @@ fn resolve(db: &Db, input: &GenerateInput) -> Result<Vec<Candidate>, AppError> {
         .or_else(|| saved_model(&primary))
         .ok_or(AppError::NoModel)?;
 
-    let key = credentials::get(&primary.id)?;
+    let key = crate::providers::key_for(&primary)?;
     let mut out = vec![Candidate {
         record: primary,
         model,
@@ -111,7 +110,7 @@ fn resolve(db: &Db, input: &GenerateInput) -> Result<Vec<Candidate>, AppError> {
             let Some(model) = saved_model(&rec).or(chain_model) else {
                 continue;
             };
-            let key = credentials::get(&rec.id)?;
+            let key = crate::providers::key_for(&rec)?;
             out.push(Candidate {
                 record: rec,
                 model,

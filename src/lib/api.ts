@@ -290,6 +290,10 @@ export const api = {
   toolsStatus: () => call<ToolsStatus>("tools_status"),
   installFfmpeg: () => call<void>("install_ffmpeg"),
 
+  linkProvider: (sourceId: string, category: Category) => call<Provider>("link_provider", { sourceId, category }),
+  setProviderModel: (id: string, model: string) => call<Provider>("set_provider_model", { id, model }),
+  listProviderModels: (id: string) => call<ModelInfo[]>("list_provider_models", { id }),
+
   exportFile: (suggestedName: string, filterName: string, extensions: string[], dataB64: string) =>
     call<string | null>("export_file", { suggestedName, filterName, extensions, dataB64 }),
   importFile: (filterName: string, extensions: string[]) =>
@@ -312,6 +316,24 @@ export function textToBase64(text: string): string {
 /** A provider can be used for requests when enabled and (has a key, or runs locally). */
 export function isReady(p: Provider): boolean {
   return p.enabled && (p.hasKey || p.costClass === "local");
+}
+
+/** Id of the provider whose API key this one borrows, if any. */
+export function keyFrom(p: Provider): string | null {
+  if (!p.settingsJson) return null;
+  try {
+    const v = JSON.parse(p.settingsJson) as { keyFrom?: unknown };
+    return typeof v.keyFrom === "string" && v.keyFrom ? v.keyFrom : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Which jobs a provider's key can also serve (a Gemini key does text, images, speech, transcription). */
+export function sharableCategories(p: Provider): Category[] {
+  if (p.adapter.startsWith("gemini")) return ["text", "image", "tts", "stt"];
+  if (p.adapter.startsWith("openai")) return ["text", "image", "tts", "stt"];
+  return [];
 }
 
 export function savedModel(p: Provider): string {

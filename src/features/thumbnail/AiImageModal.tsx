@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Sparkles, Wand2 } from "lucide-react";
-import { api, isReady, savedModel } from "../../lib/api";
+import { api, isReady } from "../../lib/api";
 import { errorText } from "../../lib/errors";
 import { defaultProvider, useProviders } from "../../stores/providers";
 import { useThumb } from "../../stores/thumbnail";
 import { toast } from "../../stores/toast";
 import { useUi } from "../../stores/ui";
+import ModelPicker from "../../components/ModelPicker";
 import { Button, Field, Input, Modal, Select, Textarea } from "../../components/ui/controls";
 import { addImageFromData } from "./imageIo";
 
@@ -153,11 +154,7 @@ export default function AiImageModal({ onClose }: { onClose: () => void }) {
               </Select>
             </Field>
             <Field label={t("content.model")}>
-              <Input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder={(provider && savedModel(provider)) || t("content.modelPlaceholder")}
-              />
+              <ModelPicker provider={provider} value={model} onChange={setModel} />
             </Field>
           </div>
           {provider?.adapter === "openai_images" && (

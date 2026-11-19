@@ -39,6 +39,9 @@ pub async fn transcribe(
     mime: &str,
     bytes: Vec<u8>,
 ) -> Result<SttOutput, AppError> {
+    if p.adapter == "gemini_stt" {
+        return super::gemini_media::transcribe(p, key, model, lang, mime, &bytes).await;
+    }
     let part = Part::bytes(bytes)
         .file_name(file_name.to_string())
         .mime_str(mime)

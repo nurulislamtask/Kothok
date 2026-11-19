@@ -55,7 +55,7 @@ export default function VoiceLibraryPage() {
 
   useEffect(() => {
     setVoices([]);
-    if (!provider || provider.adapter !== "google_tts") return;
+    if (!provider || provider.adapter === "openai_tts") return;
     let alive = true;
     setLoading(true);
     api
@@ -153,7 +153,7 @@ export default function VoiceLibraryPage() {
               </label>
             </div>
 
-            {provider?.adapter !== "google_tts" ? (
+            {provider?.adapter === "openai_tts" ? (
               <p className="text-sm text-muted-foreground">{t("vlib.noList")}</p>
             ) : loading ? (
               <p className="text-sm text-muted-foreground">{t("common.loading")}</p>

@@ -7,7 +7,6 @@ use tauri::State;
 use super::files::mime_for;
 use super::providers::load_provider;
 use super::tools;
-use crate::credentials;
 use crate::db::Db;
 use crate::error::AppError;
 use crate::paths::AppPaths;
@@ -33,7 +32,21 @@ pub async fn stt_transcribe(
 ) -> Result<SttOutput, AppError> {
     let path = paths.media_path(&input.file)?;
     let size = std::fs::metadata(&path)?.len() as usize;
-    let too_big = size > stt::MAX_UPLOAD_BYTES;
+    let is_gemini = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        match input.provider_id.as_deref().filter(|s| !s.is_empty()) {
+            Some(id) => load_provider(&conn, id)
+                .map(|r| r.adapter == "gemini_stt")
+                .unwrap_or(false),
+            None => false,
+        }
+    };
+    let limit = if is_gemini {
+        crate::providers::gemini_media::MAX_INLINE_AUDIO_BYTES
+    } else {
+        stt::MAX_UPLOAD_BYTES
+    };
+    let too_big = size > limit;
     let ffmpeg = if too_big {
         Some(
             tools::ffmpeg_path(&paths)
@@ -73,7 +86,7 @@ pub async fn stt_transcribe(
             .ok_or(AppError::NoModel)?;
         (rec, model)
     };
-    let key = credentials::get(&record.id)?;
+    let key = crate::providers::key_for(&record)?;
     let started = Instant::now();
     let result = if let Some(ff) = ffmpeg {
         transcribe_large(
@@ -124,17 +137,21 @@ async fn transcribe_large(
     input: &std::path::Path,
     paths: &AppPaths,
 ) -> Result<SttOutput, AppError> {
+    let limit = if record.adapter == "gemini_stt" {
+        crate::providers::gemini_media::MAX_INLINE_AUDIO_BYTES as u64
+    } else {
+        stt::MAX_UPLOAD_BYTES as u64
+    } - 1024 * 1024;
     let work = paths
         .temp
         .join(format!("stt-{}", crate::paths::random_stem()));
     std::fs::create_dir_all(&work)?;
     let (ff, inp, wd) = (ffmpeg.to_path_buf(), input.to_path_buf(), work.clone());
-    let pieces = tauri::async_runtime::spawn_blocking(move || {
-        tools::prepare_audio(&ff, &inp, &wd, (stt::MAX_UPLOAD_BYTES as u64) - 1024 * 1024)
-    })
-    .await
-    .map_err(|e| AppError::Invalid(e.to_string()))
-    .and_then(|r| r);
+    let pieces =
+        tauri::async_runtime::spawn_blocking(move || tools::prepare_audio(&ff, &inp, &wd, limit))
+            .await
+            .map_err(|e| AppError::Invalid(e.to_string()))
+            .and_then(|r| r);
     let pieces = match pieces {
         Ok(p) => p,
         Err(e) => {

@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::providers::load_provider;
-use crate::credentials;
 use crate::db::Db;
 use crate::error::AppError;
 use crate::paths::{clean_ext, random_stem, AppPaths};
@@ -32,7 +31,7 @@ pub async fn tts_list_voices(
     lang: Option<String>,
 ) -> Result<Vec<VoiceInfo>, AppError> {
     let rec = tts_provider(&db, &provider_id)?;
-    let key = credentials::get(&rec.id)?;
+    let key = crate::providers::key_for(&rec)?;
     tts::list_voices(&rec, key.as_deref(), lang.as_deref()).await
 }
 
@@ -73,7 +72,7 @@ pub async fn tts_synthesize(
         return Err(AppError::Invalid("choose a voice first".into()));
     }
     let rec = tts_provider(&db, &input.provider_id)?;
-    let key = credentials::get(&rec.id)?;
+    let key = crate::providers::key_for(&rec)?;
     let model = input
         .model
         .clone()

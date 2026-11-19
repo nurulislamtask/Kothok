@@ -49,7 +49,7 @@ pub struct ProviderDto {
 }
 
 fn to_dto(record: ProviderRecord) -> Result<ProviderDto, AppError> {
-    let has_key = credentials::get(&record.id)?.is_some();
+    let has_key = providers::key_for(&record)?.is_some();
     Ok(ProviderDto { record, has_key })
 }
 
@@ -167,23 +167,48 @@ pub fn save_provider(db: State<'_, Db>, input: ProviderInput) -> Result<Provider
         .map(str::trim)
         .filter(|k| !k.is_empty())
     {
-        credentials::set(&record.id, k)?;
+        credentials::set(&providers::key_owner(&record), k)?;
     }
     to_dto(record)
 }
 
 #[tauri::command]
 pub fn delete_provider(db: State<'_, Db>, id: String) -> Result<(), AppError> {
-    {
+    let (own_key, linked): (bool, Vec<String>) = {
         let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        let rec = load_provider(&conn, &id).ok();
+        let own_key = rec.map(|r| providers::key_owner(&r) == id).unwrap_or(true);
+        // Providers that borrow this one's key go with it, otherwise they would be left keyless.
+        let mut stmt = conn.prepare(
+            "SELECT id FROM providers WHERE json_extract(settings_json, '$.keyFrom') = ?1",
+        )?;
+        let linked = stmt
+            .query_map([&id], |r| r.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        for l in &linked {
+            conn.execute("DELETE FROM providers WHERE id = ?1", [l])?;
+        }
         conn.execute("DELETE FROM providers WHERE id = ?1", [&id])?;
+        (own_key, linked)
+    };
+    let _ = linked;
+    // A borrowed key belongs to its owner and stays.
+    if own_key {
+        credentials::delete(&id)?;
     }
-    credentials::delete(&id)
+    Ok(())
 }
 
 #[tauri::command]
-pub fn clear_api_key(id: String) -> Result<(), AppError> {
-    credentials::delete(&id)
+pub fn clear_api_key(db: State<'_, Db>, id: String) -> Result<(), AppError> {
+    let owner = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        match load_provider(&conn, &id) {
+            Ok(r) => providers::key_owner(&r),
+            Err(_) => id,
+        }
+    };
+    credentials::delete(&owner)
 }
 
 #[derive(Debug, Serialize)]
@@ -202,7 +227,7 @@ pub async fn test_provider(db: State<'_, Db>, id: String) -> Result<TestResult, 
         let r = load_provider(&conn, &id)?;
         r
     };
-    let key = credentials::get(&id)?;
+    let key = providers::key_for(&record)?;
     let result = providers::list_models(&record, key.as_deref()).await;
 
     let (status, err) = match &result {
@@ -329,4 +354,164 @@ pub fn get_fallback_chains(db: State<'_, Db>) -> Result<Vec<FallbackRow>, AppErr
     })?;
     let collected = rows.collect::<Result<Vec<_>, _>>()?;
     Ok(collected)
+}
+
+/// Models the provider offers for its job (synced live; nothing is stored).
+#[tauri::command]
+pub async fn list_provider_models(
+    db: State<'_, Db>,
+    id: String,
+) -> Result<Vec<ModelInfo>, AppError> {
+    let record = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        load_provider(&conn, &id)?
+    };
+    let key = providers::key_for(&record)?;
+    providers::list_models(&record, key.as_deref()).await
+}
+
+fn write_model(conn: &Connection, id: &str, model: &str) -> Result<(), AppError> {
+    let rec = load_provider(conn, id)?;
+    let mut v: serde_json::Value = rec
+        .settings_json
+        .as_deref()
+        .and_then(|s| serde_json::from_str(s).ok())
+        .filter(|v: &serde_json::Value| v.is_object())
+        .unwrap_or_else(|| serde_json::json!({}));
+    v["model"] = serde_json::json!(model.trim());
+    conn.execute(
+        "UPDATE providers SET settings_json = ?1 WHERE id = ?2",
+        params![v.to_string(), id],
+    )?;
+    Ok(())
+}
+
+/// Choose the model this provider uses for its page (Content, Voice, ...).
+#[tauri::command]
+pub fn set_provider_model(
+    db: State<'_, Db>,
+    id: String,
+    model: String,
+) -> Result<ProviderDto, AppError> {
+    let m = model.trim();
+    if m.is_empty() || m.chars().count() > 200 {
+        return Err(AppError::Invalid(
+            "model name must be 1-200 characters".into(),
+        ));
+    }
+    let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+    write_model(&conn, &id, m)?;
+    conn.execute(
+        "UPDATE provider_defaults SET model = ?1 WHERE provider_id = ?2",
+        params![m, id],
+    )?;
+    let rec = load_provider(&conn, &id)?;
+    drop(conn);
+    to_dto(rec)
+}
+
+/// Use the same key for another job (for example one Gemini key for text, voice and
+/// transcription). Creates a provider for `category` that borrows the key, syncs the model
+/// list, picks a sensible model and makes it the default for that job if none is set.
+#[tauri::command]
+pub async fn link_provider(
+    db: State<'_, Db>,
+    source_id: String,
+    category: String,
+) -> Result<ProviderDto, AppError> {
+    if !CATEGORIES.contains(&category.as_str()) || adapters_for(&category).is_empty() {
+        return Err(AppError::Invalid("unsupported provider type".into()));
+    }
+    let source = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        load_provider(&conn, &source_id)?
+    };
+    let owner = providers::key_owner(&source);
+    let adapter = providers::linked_adapter(&source.adapter, &category)
+        .ok_or_else(|| AppError::Invalid("this provider cannot be reused for that job".into()))?;
+
+    // Already linked? Return it.
+    let existing = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        let id: Option<String> = conn
+            .query_row(
+                "SELECT id FROM providers WHERE category = ?1
+                   AND (id = ?2 OR json_extract(settings_json, '$.keyFrom') = ?2)",
+                params![category, owner],
+                |r| r.get(0),
+            )
+            .optional()?;
+        match id {
+            Some(id) => Some(load_provider(&conn, &id)?),
+            None => None,
+        }
+    };
+    if let Some(rec) = existing {
+        return to_dto(rec);
+    }
+
+    let owner_rec = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        load_provider(&conn, &owner)?
+    };
+    // Image generation is billed on most services; the other jobs keep the source's class.
+    let cost_class = if category == "image" {
+        "paid".to_string()
+    } else {
+        owner_rec.cost_class.clone()
+    };
+    let new_id = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        let suffix: String =
+            conn.query_row("SELECT lower(hex(randomblob(4)))", [], |r| r.get(0))?;
+        let id = format!("{adapter}-{suffix}");
+        conn.execute(
+            "INSERT INTO providers (id, category, adapter, display_name, endpoint, enabled, cost_class, settings_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7)",
+            params![
+                id,
+                category,
+                adapter,
+                owner_rec.display_name,
+                owner_rec.endpoint,
+                cost_class,
+                serde_json::json!({ "keyFrom": owner }).to_string()
+            ],
+        )?;
+        id
+    };
+
+    // Sync models and pick a starting one. Failure is fine: the user can pick later.
+    let rec = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        load_provider(&conn, &new_id)?
+    };
+    let key = providers::key_for(&rec)?;
+    if let Ok(models) = providers::list_models(&rec, key.as_deref()).await {
+        if let Some(m) = providers::pick_default_model(&category, &models) {
+            let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+            write_model(&conn, &new_id, &m)?;
+        }
+    }
+    let rec = {
+        let conn = db.0.lock().map_err(|_| AppError::Lock)?;
+        let has_default: Option<String> = conn
+            .query_row(
+                "SELECT provider_id FROM provider_defaults WHERE category = ?1",
+                [&category],
+                |r| r.get::<_, Option<String>>(0),
+            )
+            .optional()?
+            .flatten();
+        let rec = load_provider(&conn, &new_id)?;
+        if has_default.is_none() && saved_model(&rec).is_some() {
+            conn.execute(
+                "INSERT INTO provider_defaults (category, provider_id, model) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(category) DO UPDATE SET provider_id = excluded.provider_id, model = excluded.model",
+                params![category, new_id, saved_model(&rec)],
+            )?;
+        }
+        rec
+    };
+    to_dto(rec)
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, FolderPlus, Mic, Play, Trash2 } from "lucide-react";
-import { api, isReady, savedModel, type TtsHistoryItem, type VoiceFavorite, type VoiceInfo } from "../../lib/api";
+import { api, isReady, type TtsHistoryItem, type VoiceFavorite, type VoiceInfo } from "../../lib/api";
 import { errorText } from "../../lib/errors";
 import { safeName } from "../../lib/exporters";
 import { formatDate } from "../../lib/utils";
@@ -9,6 +9,7 @@ import { defaultProvider, useProviders } from "../../stores/providers";
 import { toast } from "../../stores/toast";
 import { useUi } from "../../stores/ui";
 import { useVoice } from "../../stores/voice";
+import ModelPicker from "../../components/ModelPicker";
 import { Button, Field, Input, Select, Textarea } from "../../components/ui/controls";
 import SaveToProjectModal from "../../components/SaveToProjectModal";
 import { audioUrl } from "./audioUrl";
@@ -35,6 +36,8 @@ export default function VoicePage() {
   const [history, setHistory] = useState<TtsHistoryItem[]>([]);
   const [saving, setSaving] = useState(false);
   const isGoogle = provider?.adapter === "google_tts";
+  const hasList = provider?.adapter !== "openai_tts";
+  const isGeminiApi = provider?.adapter === "gemini_tts";
 
   const loadHistory = useCallback(() => {
     api
@@ -53,7 +56,7 @@ export default function VoicePage() {
 
   useEffect(() => {
     setVoices([]);
-    if (!provider || !isGoogle) return;
+    if (!provider || !hasList) return;
     let alive = true;
     api
       .ttsListVoices(provider.id, sel.lang)
@@ -62,7 +65,7 @@ export default function VoicePage() {
     return () => {
       alive = false;
     };
-  }, [provider?.id, isGoogle, sel.lang]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [provider?.id, hasList, sel.lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const url = current?.url;
@@ -109,7 +112,8 @@ export default function VoicePage() {
   const download = async (file: string, name: string) => {
     try {
       const f = await api.readMedia(file);
-      const saved = await api.exportFile(`${safeName(name, "kothok-voice")}.mp3`, "MP3 audio", ["mp3"], f.dataB64);
+      const ext = file.toLowerCase().endsWith(".wav") ? "wav" : "mp3";
+      const saved = await api.exportFile(`${safeName(name, "kothok-voice")}.${ext}`, ext.toUpperCase(), [ext], f.dataB64);
       if (saved) toast.success(t("content.exported", { path: saved }));
     } catch (e) {
       toast.error(errorText(e));
@@ -164,7 +168,7 @@ export default function VoicePage() {
               ))}
             </Select>
           </Field>
-          <Field label={t("voice.voice")} hint={isGoogle ? t("voice.voiceHintGoogle", { count: voices.length }) : t("voice.voiceHintManual")}>
+          <Field label={t("voice.voice")} hint={hasList ? t("voice.voiceHintGoogle", { count: voices.length }) : t("voice.voiceHintManual")}>
             {sortedVoices.length > 0 ? (
               <Select value={sel.voiceId} onChange={(e) => sel.set({ voiceId: e.target.value })}>
                 <option value="">{t("voice.choose")}</option>
@@ -181,7 +185,7 @@ export default function VoicePage() {
             )}
           </Field>
           <Field label={t("content.model")} hint={isGoogle ? t("voice.modelHintGoogle") : undefined}>
-            <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={(provider && savedModel(provider)) || t("content.modelPlaceholder")} />
+            <ModelPicker provider={provider} value={model} onChange={setModel} />
           </Field>
         </div>
 
@@ -196,6 +200,7 @@ export default function VoicePage() {
           )}
         </div>
         {isGoogle && <p className="text-xs text-muted-foreground">{t("voice.geminiNote")}</p>}
+        {isGeminiApi && <p className="text-xs text-muted-foreground">{t("voice.geminiApiNote")}</p>}
         {provider?.costClass === "paid" && <p className="text-xs text-amber-500">{t("voice.paidNote")}</p>}
 
         <Button variant="primary" disabled={busy} onClick={() => void generate()}>

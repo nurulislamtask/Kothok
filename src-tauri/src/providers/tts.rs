@@ -49,6 +49,7 @@ fn google_key(key: Option<&str>) -> Result<&str, AppError> {
 pub async fn check_access(p: &ProviderRecord, key: Option<&str>) -> Result<usize, AppError> {
     match p.adapter.as_str() {
         "google_tts" => Ok(list_voices(p, key, None).await?.len()),
+        "gemini_tts" => super::gemini::list_models(p, key).await.map(|m| m.len()),
         "openai_tts" => openai_compat::list_models(p, key).await.map(|m| m.len()),
         other => Err(AppError::Invalid(format!("unknown adapter {other}"))),
     }
@@ -70,6 +71,7 @@ pub async fn list_voices(
             let v = read_json(check(rb.send().await.map_err(map_send_error)?).await?).await?;
             Ok(parse_google_voices(&v))
         }
+        "gemini_tts" => Ok(super::gemini_media::voices()),
         // OpenAI-style servers have no voice list endpoint; the user supplies a voice id.
         "openai_tts" => Ok(vec![]),
         other => Err(AppError::Invalid(format!("unknown adapter {other}"))),
@@ -165,6 +167,9 @@ pub async fn synthesize(
     } else {
         3500
     };
+    if p.adapter == "gemini_tts" {
+        return synthesize_gemini(p, key, req).await;
+    }
     let parts = chunk_text(&req.text, limit);
     if parts.is_empty() {
         return Err(AppError::Invalid("text is empty".into()));
@@ -184,6 +189,38 @@ pub async fn synthesize(
     Ok(AudioOut {
         bytes,
         ext: "mp3",
+        chunks: parts.len(),
+    })
+}
+
+async fn synthesize_gemini(
+    p: &ProviderRecord,
+    key: Option<&str>,
+    req: &TtsRequest,
+) -> Result<AudioOut, AppError> {
+    let model = req
+        .model
+        .as_deref()
+        .filter(|m| !m.trim().is_empty())
+        .ok_or(AppError::NoModel)?;
+    let parts = chunk_text(&req.text, 3000);
+    if parts.is_empty() {
+        return Err(AppError::Invalid("text is empty".into()));
+    }
+    let mut pcm: Vec<u8> = Vec::new();
+    let mut rate = 24_000;
+    for part in &parts {
+        let (chunk, r) =
+            super::gemini_media::synthesize_pcm(p, key, model, &req.voice_id, part).await?;
+        rate = r;
+        pcm.extend_from_slice(&chunk);
+        if pcm.len() > MAX_AUDIO_BYTES {
+            return Err(AppError::Invalid("generated audio is too large".into()));
+        }
+    }
+    Ok(AudioOut {
+        bytes: super::gemini_media::wav_from_pcm(&pcm, rate),
+        ext: "wav",
         chunks: parts.len(),
     })
 }

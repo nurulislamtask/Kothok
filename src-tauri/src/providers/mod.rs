@@ -3,6 +3,7 @@
 //! Adding a provider = add a module + one match arm here + one entry in ADAPTERS.
 
 pub mod gemini;
+pub mod gemini_media;
 mod http;
 pub mod image_gen;
 pub mod openai_compat;
@@ -19,13 +20,131 @@ pub fn adapters_for(category: &str) -> &'static [&'static str] {
     match category {
         "text" => &["gemini", "openai_compat"],
         "image" => &["gemini_image", "openai_images"],
-        "tts" => &["google_tts", "openai_tts"],
-        "stt" => &["openai_stt"],
+        "tts" => &["gemini_tts", "google_tts", "openai_tts"],
+        "stt" => &["gemini_stt", "openai_stt"],
         _ => &[],
     }
 }
 
 /// Adapters that talk to a user-supplied OpenAI-style base URL.
+/// The provider record that actually holds the API key. A provider created with
+/// "use this key for another job" points at the original through `keyFrom`.
+pub fn key_owner(p: &ProviderRecord) -> String {
+    p.settings_json
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+        .and_then(|v| v.get("keyFrom").and_then(|k| k.as_str()).map(String::from))
+        .filter(|k| !k.is_empty())
+        .unwrap_or_else(|| p.id.clone())
+}
+
+/// The API key for a provider, following `keyFrom`.
+pub fn key_for(p: &ProviderRecord) -> Result<Option<String>, AppError> {
+    crate::credentials::get(&key_owner(p))
+}
+
+fn has_any(id: &str, words: &[&str]) -> bool {
+    let id = id.to_ascii_lowercase();
+    words.iter().any(|w| id.contains(w))
+}
+
+/// Keep the models that fit this provider's job (a TTS model is useless for writing text).
+/// If the filter would remove everything, the full list is returned instead.
+pub fn filter_models(category: &str, models: Vec<ModelInfo>) -> Vec<ModelInfo> {
+    let keep = |m: &ModelInfo| -> bool {
+        let id = &m.id;
+        match category {
+            "tts" => has_any(id, &["tts", "speech"]),
+            "image" => has_any(id, &["image", "imagen", "dall-e", "dalle"]),
+            "stt" => {
+                has_any(id, &["whisper", "transcribe", "stt"])
+                    || !has_any(
+                        id,
+                        &[
+                            "tts",
+                            "image",
+                            "imagen",
+                            "embed",
+                            "veo",
+                            "moderation",
+                            "dall-e",
+                            "speech",
+                        ],
+                    )
+            }
+            "text" => !has_any(
+                id,
+                &[
+                    "tts",
+                    "speech",
+                    "image",
+                    "imagen",
+                    "embed",
+                    "veo",
+                    "whisper",
+                    "transcribe",
+                    "moderation",
+                    "dall-e",
+                    "aqa",
+                    "guard",
+                ],
+            ),
+            _ => true,
+        }
+    };
+    let kept: Vec<ModelInfo> = models.iter().filter(|m| keep(m)).cloned().collect();
+    if kept.is_empty() {
+        models
+    } else {
+        kept
+    }
+}
+
+/// Which adapter does the same job in another category with the same kind of key?
+pub fn linked_adapter(source_adapter: &str, category: &str) -> Option<&'static str> {
+    match (source_adapter, category) {
+        ("gemini" | "gemini_image" | "gemini_tts" | "gemini_stt", "text") => Some("gemini"),
+        ("gemini" | "gemini_image" | "gemini_tts" | "gemini_stt", "image") => Some("gemini_image"),
+        ("gemini" | "gemini_image" | "gemini_tts" | "gemini_stt", "tts") => Some("gemini_tts"),
+        ("gemini" | "gemini_image" | "gemini_tts" | "gemini_stt", "stt") => Some("gemini_stt"),
+        ("openai_compat" | "openai_images" | "openai_tts" | "openai_stt", "text") => {
+            Some("openai_compat")
+        }
+        ("openai_compat" | "openai_images" | "openai_tts" | "openai_stt", "image") => {
+            Some("openai_images")
+        }
+        ("openai_compat" | "openai_images" | "openai_tts" | "openai_stt", "tts") => {
+            Some("openai_tts")
+        }
+        ("openai_compat" | "openai_images" | "openai_tts" | "openai_stt", "stt") => {
+            Some("openai_stt")
+        }
+        _ => None,
+    }
+}
+
+/// Best starting model from a synced list: the newest-looking "flash"/"mini" style model first.
+pub fn pick_default_model(category: &str, models: &[ModelInfo]) -> Option<String> {
+    let prefs: &[&str] = match category {
+        "text" | "stt" => &["flash", "mini", "turbo", "versatile"],
+        _ => &[],
+    };
+    for pref in prefs {
+        let mut hits: Vec<&ModelInfo> = models
+            .iter()
+            .filter(|m| {
+                m.id.to_ascii_lowercase().contains(pref)
+                    && !has_any(&m.id, &["lite", "preview-0", "exp"])
+            })
+            .collect();
+        hits.sort_by(|a, b| b.id.cmp(&a.id));
+        if let Some(m) = hits.first() {
+            return Some(m.id.clone());
+        }
+    }
+    models.first().map(|m| m.id.clone())
+}
+
 pub fn needs_endpoint(adapter: &str) -> bool {
     matches!(
         adapter,
@@ -115,9 +234,13 @@ pub async fn list_models(
     key: Option<&str>,
 ) -> Result<Vec<ModelInfo>, AppError> {
     match p.adapter.as_str() {
-        "gemini" | "gemini_image" => gemini::list_models(p, key).await,
+        "gemini" | "gemini_image" | "gemini_tts" | "gemini_stt" => gemini::list_models(p, key)
+            .await
+            .map(|m| filter_models(&p.category, m)),
         "openai_compat" | "openai_images" | "openai_tts" | "openai_stt" => {
-            openai_compat::list_models(p, key).await
+            openai_compat::list_models(p, key)
+                .await
+                .map(|m| filter_models(&p.category, m))
         }
         // Google Cloud TTS has no model list; a successful voice listing proves the key works.
         "google_tts" => tts::check_access(p, key).await.map(|_| Vec::new()),
@@ -173,5 +296,89 @@ mod tests {
         assert_eq!(saved_model(&p), None);
         p.settings_json = Some(r#"{"model":"  "}"#.into());
         assert_eq!(saved_model(&p), None);
+    }
+}
+
+#[cfg(test)]
+mod model_tests {
+    use super::*;
+
+    fn m(id: &str) -> ModelInfo {
+        ModelInfo {
+            id: id.into(),
+            display_name: None,
+        }
+    }
+
+    #[test]
+    fn filters_models_by_job() {
+        let all = vec![
+            m("gemini-2.5-flash"),
+            m("gemini-2.5-flash-preview-tts"),
+            m("gemini-2.5-flash-image"),
+            m("text-embedding-004"),
+        ];
+        let ids = |c: &str| {
+            filter_models(c, all.clone())
+                .into_iter()
+                .map(|x| x.id)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(ids("text"), vec!["gemini-2.5-flash"]);
+        assert_eq!(ids("tts"), vec!["gemini-2.5-flash-preview-tts"]);
+        assert_eq!(ids("image"), vec!["gemini-2.5-flash-image"]);
+        assert_eq!(ids("stt"), vec!["gemini-2.5-flash"]);
+    }
+
+    #[test]
+    fn empty_filter_falls_back_to_everything() {
+        assert_eq!(filter_models("tts", vec![m("llama-3")]).len(), 1);
+    }
+
+    #[test]
+    fn key_owner_follows_key_from() {
+        let mut p = ProviderRecord {
+            id: "gemini_tts-1".into(),
+            category: "tts".into(),
+            adapter: "gemini_tts".into(),
+            display_name: "x".into(),
+            endpoint: None,
+            enabled: true,
+            cost_class: "free_tier".into(),
+            settings_json: Some(r#"{"keyFrom":"gemini-abc","model":"m"}"#.into()),
+            last_status: None,
+            last_error: None,
+            last_checked_at: None,
+        };
+        assert_eq!(key_owner(&p), "gemini-abc");
+        p.settings_json = None;
+        assert_eq!(key_owner(&p), "gemini_tts-1");
+    }
+
+    #[test]
+    fn links_across_categories() {
+        assert_eq!(linked_adapter("gemini", "tts"), Some("gemini_tts"));
+        assert_eq!(
+            linked_adapter("openai_compat", "image"),
+            Some("openai_images")
+        );
+        assert_eq!(linked_adapter("google_tts", "text"), None);
+    }
+
+    #[test]
+    fn default_model_prefers_flash() {
+        let l = vec![
+            m("gemini-2.0-flash-lite"),
+            m("gemini-2.5-flash"),
+            m("gemini-2.5-pro"),
+        ];
+        assert_eq!(
+            pick_default_model("text", &l).as_deref(),
+            Some("gemini-2.5-flash")
+        );
+        assert_eq!(
+            pick_default_model("tts", &[m("a-tts")]).as_deref(),
+            Some("a-tts")
+        );
     }
 }

@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::providers::load_provider;
-use crate::credentials;
 use crate::db::Db;
 use crate::error::AppError;
 use crate::providers::image_gen::{generate_image, ImageRequest};
@@ -73,7 +72,7 @@ pub async fn ai_generate_image(
             .ok_or(AppError::NoModel)?;
         (rec, model)
     };
-    let key = credentials::get(&record.id)?;
+    let key = crate::providers::key_for(&record)?;
 
     let started = Instant::now();
     let req = ImageRequest {
