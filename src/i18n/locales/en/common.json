@@ -98,7 +98,18 @@
     "ffmpegSystem": "Found on this PC.",
     "ffmpegInstall": "Download FFmpeg",
     "ffmpegDone": "FFmpeg is ready.",
-    "installed": "Installed"
+    "installed": "Installed",
+    "whisperEngine": "Whisper engine (offline transcription)",
+    "whisperEngineHint": "Downloads whisper.cpp from its official GitHub release to run transcription on this PC for free.",
+    "whisperEngineOk": "Installed. Now install at least one model below.",
+    "whisperInstall": "Install",
+    "whisperModel": "Whisper model: {{name}}",
+    "toolDone": "Installed and verified.",
+    "whisperModelHint": {
+      "base": "About 150 MB. Fast, lowest accuracy.",
+      "small": "About 500 MB. Good balance for most PCs.",
+      "medium": "About 1.5 GB. Best accuracy, slow without a strong PC."
+    }
   },
   "errors": {
     "db_error": "A database problem occurred.",
@@ -269,6 +280,14 @@
       "gemini_stt": {
         "name": "Google Gemini (transcription)",
         "note": "Uses your Gemini API key to transcribe audio. Returns text without timestamps; files over about 14 MB need FFmpeg."
+      },
+      "whisper_local": {
+        "name": "Whisper on this PC (offline, free)",
+        "note": "Runs whisper.cpp on your computer: no key, no internet, no cost. Install the engine and a model in Settings → Tools first. Needs FFmpeg. Slower than cloud on weak PCs."
+      },
+      "elevenlabs_clone": {
+        "name": "ElevenLabs voice cloning",
+        "note": "Paid ElevenLabs plans only (instant cloning). Bangla works only with the Eleven v3 model. Your sample is uploaded to ElevenLabs."
       }
     },
     "category": "Provider type",
@@ -276,7 +295,8 @@
       "text": "Text generation",
       "image": "Image generation",
       "tts": "Voice (text to speech)",
-      "stt": "Transcription (speech to text)"
+      "stt": "Transcription (speech to text)",
+      "clone": "Voice cloning"
     },
     "usesKeyOf": "Uses the API key of “{{name}}”.",
     "shareTitle": "Use this key for other jobs",
@@ -546,7 +566,7 @@
     "preview": "Preview",
     "use": "Use",
     "profiles": "Voice profiles",
-    "cloneNote": "Profiles store a consented voice sample. No voice-cloning engine is connected yet, so profiles cannot generate speech in this version.",
+    "cloneNote": "Profiles store a consented voice sample. To use one for speech, create a cloned voice with a connected cloning provider (ElevenLabs, paid). Without one, a profile cannot speak.",
     "addProfile": "Add voice profile",
     "noProfiles": "No voice profiles yet.",
     "consentOn": "Consent confirmed {{date}}",
@@ -560,7 +580,15 @@
     "statement": "Consent statement",
     "statementHint": "e.g. who the voice belongs to and that they allow this use (at least 10 characters).",
     "consent": "I confirm this voice is mine or I have the speaker's explicit permission to use it.",
-    "created": "Voice profile saved"
+    "created": "Voice profile saved",
+    "cloned": "Cloned",
+    "makeClone": "Create cloned voice",
+    "cloning": "Uploading…",
+    "cloneDone": "Cloned voice created. Pick it in Voice Studio with the cloning provider.",
+    "cloneTitle": "Clone “{{name}}”",
+    "noCloneProvider": "No voice-cloning provider is connected. Add ElevenLabs voice cloning in API Manager first (needs a paid ElevenLabs plan).",
+    "cloneWarn": "This uploads the voice sample to the provider you pick. Only continue if the speaker agreed (see the consent you saved) and your provider plan allows instant cloning.",
+    "cloneConfirm": "I understand the sample will be uploaded and I have the speaker's permission."
   },
   "audio": {
     "noProvider": "No transcription provider is set up",

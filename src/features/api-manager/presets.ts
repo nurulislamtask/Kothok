@@ -30,10 +30,12 @@ export const PRESETS: readonly Preset[] = [
   { id: "groq_stt", category: "stt", adapter: "openai_stt", endpoint: "https://api.groq.com/openai/v1", costClass: "free_tier" },
   { id: "openai_stt", category: "stt", adapter: "openai_stt", endpoint: "https://api.openai.com/v1", costClass: "paid" },
   { id: "local_stt", category: "stt", adapter: "openai_stt", endpoint: "http://localhost:8000/v1", costClass: "local" },
+  { id: "whisper_local", category: "stt", adapter: "whisper_local", endpoint: "", costClass: "local" },
+  { id: "elevenlabs_clone", category: "clone", adapter: "elevenlabs_clone", endpoint: "", costClass: "paid" },
   { id: "custom_stt", category: "stt", adapter: "openai_stt", endpoint: "", costClass: "paid" },
 ];
 
 /** Provider categories that have working adapters in this build. */
-export const CATEGORIES: readonly Category[] = ["text", "image", "tts", "stt"];
+export const CATEGORIES: readonly Category[] = ["text", "image", "tts", "clone", "stt"];
 
 export const COST_CLASSES: readonly CostClass[] = ["local", "free", "free_tier", "paid"];

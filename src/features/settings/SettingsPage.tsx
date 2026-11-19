@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
 import { api, type AppInfo, type Category, type StorageInfo, type ToolsStatus } from "../../lib/api";
@@ -80,6 +81,41 @@ export default function SettingsPage() {
   const [installing, setInstalling] = useState(false);
   const [tools, setTools] = useState<ToolsStatus | null>(null);
   const [ffBusy, setFfBusy] = useState(false);
+  const [toolBusy, setToolBusy] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number | null } | null>(null);
+
+  useEffect(() => {
+    let off: (() => void) | undefined;
+    void listen<{ tool: string; done: number; total: number | null }>("tool-progress", (e) =>
+      setProgress({ done: e.payload.done, total: e.payload.total }),
+    )
+      .then((f) => {
+        off = f;
+      })
+      .catch(() => undefined);
+    return () => off?.();
+  }, []);
+
+  const progressLabel = (_tool: string) => {
+    const mb = (n: number) => `${Math.round(n / 1048576)} MB`;
+    if (!progress) return t("settings.downloading");
+    return progress.total ? `${mb(progress.done)} / ${mb(progress.total)}` : mb(progress.done);
+  };
+
+  const installTool = async (id: string, run: () => Promise<void>) => {
+    setToolBusy(id);
+    setProgress(null);
+    try {
+      await run();
+      setTools(await api.toolsStatus());
+      toast.success(t("settings.toolDone"));
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      setToolBusy(null);
+      setProgress(null);
+    }
+  };
 
   const loadStorage = () => {
     api.storageInfo().then(setStorage).catch(() => setStorage(null));
@@ -193,6 +229,29 @@ export default function SettingsPage() {
             {tools?.ffmpeg ? t("settings.installed") : ffBusy ? t("settings.downloading") : t("settings.ffmpegInstall")}
           </Button>
         </Row>
+        <Row
+          title={t("settings.whisperEngine")}
+          hint={tools?.whisperEngine ? t("settings.whisperEngineOk") : t("settings.whisperEngineHint")}
+        >
+          <Button
+            size="sm"
+            disabled={toolBusy !== null || tools?.whisperEngine === true}
+            onClick={() => void installTool("engine", () => api.installWhisperEngine())}
+          >
+            {tools?.whisperEngine ? t("settings.installed") : toolBusy === "engine" ? progressLabel("whisper") : t("settings.whisperInstall")}
+          </Button>
+        </Row>
+        {(["base", "small", "medium"] as const).map((m) => (
+          <Row key={m} title={t("settings.whisperModel", { name: m })} hint={t(`settings.whisperModelHint.${m}`)}>
+            <Button
+              size="sm"
+              disabled={toolBusy !== null || tools?.whisperModels.includes(m) === true}
+              onClick={() => void installTool(m, () => api.installWhisperModel(m))}
+            >
+              {tools?.whisperModels.includes(m) ? t("settings.installed") : toolBusy === m ? progressLabel("whisper") : t("settings.whisperInstall")}
+            </Button>
+          </Row>
+        ))}
       </Section>
 
       <Section title={t("settings.updates")}>

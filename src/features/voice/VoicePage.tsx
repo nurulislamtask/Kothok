@@ -23,7 +23,7 @@ export default function VoicePage() {
   const defaults = useProviders((s) => s.defaults);
   const sel = useVoice();
 
-  const ready = useMemo(() => providers.filter((p) => p.category === "tts" && isReady(p)), [providers]);
+  const ready = useMemo(() => providers.filter((p) => (p.category === "tts" || p.category === "clone") && isReady(p)), [providers]);
   const provider =
     ready.find((p) => p.id === sel.providerId) ?? defaultProvider({ providers, defaults }, "tts") ?? ready[0];
 

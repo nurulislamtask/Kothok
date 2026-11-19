@@ -176,6 +176,8 @@ export interface VoiceProfile {
   samplePath: string;
   lang: string | null;
   consentConfirmedAt: string;
+  remoteVoiceId?: string | null;
+  remoteProviderId?: string | null;
   consentStatement: string;
 }
 export interface VoiceProfileInput {
@@ -231,6 +233,8 @@ export interface ImportedAudio {
 export interface ToolsStatus {
   ffmpeg: boolean;
   ffmpegSource: string | null;
+  whisperEngine: boolean;
+  whisperModels: string[];
 }
 
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -293,6 +297,10 @@ export const api = {
   importAudio: () => call<ImportedAudio | null>("import_audio"),
   toolsStatus: () => call<ToolsStatus>("tools_status"),
   installFfmpeg: () => call<void>("install_ffmpeg"),
+  installWhisperEngine: () => call<void>("install_whisper_engine"),
+  installWhisperModel: (name: string) => call<void>("install_whisper_model", { name }),
+  voiceProfileClone: (profileId: number, providerId: string) =>
+    call<VoiceProfile>("voice_profile_clone", { profileId, providerId }),
 
   linkProvider: (sourceId: string, category: Category) => call<Provider>("link_provider", { sourceId, category }),
   setProviderModel: (id: string, model: string) => call<Provider>("set_provider_model", { id, model }),

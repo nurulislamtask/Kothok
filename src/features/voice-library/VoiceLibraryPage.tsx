@@ -40,6 +40,7 @@ export default function VoiceLibraryPage() {
   const [profiles, setProfiles] = useState<VoiceProfile[]>([]);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<VoiceProfile | null>(null);
+  const [cloning, setCloning] = useState<VoiceProfile | null>(null);
 
   const reloadFavs = useCallback(() => {
     api.voiceFavorites().then(setFavorites).catch(() => undefined);
@@ -215,7 +216,16 @@ export default function VoiceLibraryPage() {
                   {t("vlib.consentOn", { date: formatDate(p.consentConfirmedAt, i18n.language) })}
                 </div>
               </div>
-              <Badge>{t("vlib.noEngine")}</Badge>
+              {p.remoteVoiceId ? (
+                <Badge tone="ok">{t("vlib.cloned")}</Badge>
+              ) : (
+                <>
+                  <Badge>{t("vlib.noEngine")}</Badge>
+                  <Button size="sm" onClick={() => setCloning(p)}>
+                    {t("vlib.makeClone")}
+                  </Button>
+                </>
+              )}
               <Button size="sm" variant="ghost" aria-label={t("common.delete")} onClick={() => setDeleting(p)}>
                 <Trash2 className="size-3.5" aria-hidden />
               </Button>
@@ -224,6 +234,16 @@ export default function VoiceLibraryPage() {
         </ul>
       </section>
 
+      {cloning && (
+        <CloneModal
+          profile={cloning}
+          onClose={() => setCloning(null)}
+          onDone={() => {
+            setCloning(null);
+            reloadProfiles();
+          }}
+        />
+      )}
       {creating && (
         <ProfileModal
           onClose={() => setCreating(false)}
@@ -251,6 +271,70 @@ export default function VoiceLibraryPage() {
         />
       )}
     </div>
+  );
+}
+
+function CloneModal({ profile, onClose, onDone }: { profile: VoiceProfile; onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation();
+  const setRoute = useUi((s) => s.setRoute);
+  const providers = useProviders((s) => s.providers);
+  const ready = providers.filter((p) => p.category === "clone" && isReady(p));
+  const [pid, setPid] = useState(ready[0]?.id ?? "");
+  const [ok, setOk] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await api.voiceProfileClone(profile.id, pid);
+      toast.success(t("vlib.cloneDone"));
+      onDone();
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={t("vlib.cloneTitle", { name: profile.name })}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
+          <Button variant="primary" disabled={!ok || !pid || busy} onClick={() => void submit()}>
+            {busy ? t("vlib.cloning") : t("vlib.makeClone")}
+          </Button>
+        </>
+      }
+    >
+      {ready.length === 0 ? (
+        <div className="space-y-3 text-sm">
+          <p>{t("vlib.noCloneProvider")}</p>
+          <Button variant="primary" onClick={() => setRoute("apiManager")}>
+            {t("content.goApi")}
+          </Button>
+        </div>
+      ) : (
+        <>
+          <Field label={t("content.provider")}>
+            <Select value={pid} onChange={(e) => setPid(e.target.value)}>
+              {ready.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.displayName}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">{t("vlib.cloneWarn")}</p>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={ok} onChange={(e) => setOk(e.target.checked)} />
+            <span>{t("vlib.cloneConfirm")}</span>
+          </label>
+        </>
+      )}
+    </Modal>
   );
 }
 

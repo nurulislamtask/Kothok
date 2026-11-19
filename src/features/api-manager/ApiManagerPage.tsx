@@ -133,7 +133,7 @@ function ProviderForm({ existing, onClose }: { existing?: Provider; onClose: () 
       <Field label={t("api.name")}>
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      {!["gemini", "gemini_image", "gemini_tts", "gemini_stt", "google_tts"].includes(adapter) && (
+      {!["gemini", "gemini_image", "gemini_tts", "gemini_stt", "google_tts", "whisper_local", "elevenlabs_clone"].includes(adapter) && (
         <Field label={t("api.endpoint")} hint={t("api.endpointHint")}>
           <Input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="https://…/v1" />
         </Field>
@@ -147,6 +147,7 @@ function ProviderForm({ existing, onClose }: { existing?: Provider; onClose: () 
           ))}
         </Select>
       </Field>
+      {adapter !== "whisper_local" && (
       <Field
         label={t("api.apiKey")}
         hint={existing?.hasKey ? t("api.apiKeyKeep") : costClass === "local" ? t("api.apiKeyOptional") : t("api.apiKeyStored")}
@@ -159,6 +160,7 @@ function ProviderForm({ existing, onClose }: { existing?: Provider; onClose: () 
           placeholder={t("api.apiKeyPlaceholder")}
         />
       </Field>
+      )}
     </Modal>
   );
 }
