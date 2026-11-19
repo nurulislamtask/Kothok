@@ -9,7 +9,7 @@ use crate::error::AppError;
 
 const DEFAULT_BASE: &str = "https://generativelanguage.googleapis.com";
 
-fn base(p: &ProviderRecord) -> Result<String, AppError> {
+pub(super) fn base(p: &ProviderRecord) -> Result<String, AppError> {
     match p
         .endpoint
         .as_deref()
@@ -24,7 +24,7 @@ fn base(p: &ProviderRecord) -> Result<String, AppError> {
     }
 }
 
-fn valid_model_name(m: &str) -> bool {
+pub(super) fn valid_model_name(m: &str) -> bool {
     !m.is_empty()
         && m.chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_'))
@@ -60,7 +60,11 @@ pub async fn list_models(
                         .get("displayName")
                         .and_then(|n| n.as_str())
                         .map(String::from);
-                    Some(ModelInfo { id, display_name })
+                    Some(ModelInfo {
+                        id,
+                        display_name,
+                        free: None,
+                    })
                 })
                 .collect()
         })

@@ -35,13 +35,58 @@ pub async fn list_models(
                 .filter_map(|m| {
                     let id = m.get("id")?.as_str()?.to_string();
                     let display_name = m.get("name").and_then(|n| n.as_str()).map(String::from);
-                    Some(ModelInfo { id, display_name })
+                    Some(ModelInfo {
+                        free: is_free(m, &id),
+                        id,
+                        display_name,
+                    })
                 })
                 .collect()
         })
         .unwrap_or_default();
-    out.sort_by(|a, b| a.id.cmp(&b.id));
+    super::sort_free_first(&mut out);
     Ok(out)
+}
+
+/// OpenRouter lists `pricing` (strings, "0" = free) and marks free variants with a `:free` suffix.
+/// Providers that publish neither (OpenAI, Groq, local servers) stay `None` (unknown).
+pub(super) fn is_free(m: &serde_json::Value, id: &str) -> Option<bool> {
+    if id.ends_with(":free") {
+        return Some(true);
+    }
+    let price = |k: &str| {
+        m.pointer(&format!("/pricing/{k}")).and_then(|v| {
+            v.as_str()
+                .map(String::from)
+                .or_else(|| v.as_f64().map(|n| n.to_string()))
+        })
+    };
+    let (p, c) = (price("prompt")?, price("completion")?);
+    let zero = |s: &str| s.parse::<f64>().map(|n| n == 0.0).unwrap_or(false);
+    Some(zero(&p) && zero(&c))
+}
+
+#[cfg(test)]
+mod free_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn detects_free_models() {
+        assert_eq!(is_free(&json!({}), "x/y:free"), Some(true));
+        assert_eq!(
+            is_free(&json!({"pricing":{"prompt":"0","completion":"0"}}), "a"),
+            Some(true)
+        );
+        assert_eq!(
+            is_free(
+                &json!({"pricing":{"prompt":"0.000001","completion":"0"}}),
+                "a"
+            ),
+            Some(false)
+        );
+        assert_eq!(is_free(&json!({"id":"gpt"}), "gpt"), None);
+    }
 }
 
 pub async fn generate_text(
@@ -77,9 +122,7 @@ pub async fn generate_text(
         .unwrap_or("")
         .to_string();
     if text.trim().is_empty() {
-        return Err(AppError::BadResponse(
-            "the model returned an empty reply".into(),
-        ));
+        return Err(AppError::EmptyReply);
     }
     Ok(text)
 }

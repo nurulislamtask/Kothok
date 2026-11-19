@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, FolderPlus, Mic, Play, Trash2 } from "lucide-react";
-import { api, isReady, type TtsHistoryItem, type VoiceFavorite, type VoiceInfo } from "../../lib/api";
+import { api, isReady, savedModel, type TtsHistoryItem, type VoiceFavorite, type VoiceInfo } from "../../lib/api";
 import { errorText } from "../../lib/errors";
 import { safeName } from "../../lib/exporters";
 import { formatDate } from "../../lib/utils";
@@ -13,6 +13,7 @@ import ModelPicker from "../../components/ModelPicker";
 import { Button, Field, Input, Select, Textarea } from "../../components/ui/controls";
 import SaveToProjectModal from "../../components/SaveToProjectModal";
 import { audioUrl } from "./audioUrl";
+import AudioTags, { tagSupport } from "./AudioTags";
 import { VOICE_LANGS } from "./voiceLangs";
 
 export default function VoicePage() {
@@ -38,6 +39,22 @@ export default function VoicePage() {
   const isGoogle = provider?.adapter === "google_tts";
   const hasList = provider?.adapter !== "openai_tts";
   const isGeminiApi = provider?.adapter === "gemini_tts";
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const effectiveModel = model || (provider ? savedModel(provider) : "");
+  const support = tagSupport(provider?.adapter, effectiveModel);
+  const insertTag = (tag: string) => {
+    const ta = textRef.current;
+    const cur = useVoice.getState().text;
+    const a = ta?.selectionStart ?? cur.length;
+    const b = ta?.selectionEnd ?? cur.length;
+    const piece = `${a > 0 && !/\s$/.test(cur.slice(0, a)) ? " " : ""}${tag} `;
+    sel.set({ text: cur.slice(0, a) + piece + cur.slice(b) });
+    requestAnimationFrame(() => {
+      ta?.focus();
+      const pos = a + piece.length;
+      ta?.setSelectionRange(pos, pos);
+    });
+  };
 
   const loadHistory = useCallback(() => {
     api
@@ -146,8 +163,12 @@ export default function VoicePage() {
     <div className="grid h-full grid-cols-1 gap-6 overflow-y-auto p-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <section className="space-y-4">
         <Field label={t("voice.text")} hint={t("voice.chars", { count: sel.text.length })}>
-          <Textarea rows={12} value={sel.text} onChange={(e) => sel.set({ text: e.target.value })} placeholder={t("voice.textPlaceholder")} />
+          <Textarea ref={textRef} rows={12} value={sel.text} onChange={(e) => sel.set({ text: e.target.value })} placeholder={t("voice.textPlaceholder")} />
         </Field>
+        {support !== "no" && <AudioTags support={support} onInsert={insertTag} />}
+        {support === "no" && sel.text.includes("[") && (
+          <p className="text-xs text-amber-500">{t("tags.support.no")}</p>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <Field label={t("content.provider")}>

@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 use super::providers::load_provider;
 use crate::db::Db;
@@ -24,6 +24,20 @@ pub struct GenerateInput {
     /// Paid providers the user has explicitly confirmed for this request.
     #[serde(default)]
     pub allow_paid: Vec<String>,
+    /// When set, text is streamed to the UI as `ai-chunk` events carrying this id.
+    #[serde(default)]
+    pub stream_id: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ChunkEvent {
+    stream_id: String,
+    text: String,
+    /// True when a new attempt (fallback provider) starts and earlier text must be discarded.
+    reset: bool,
+    provider_name: String,
+    model: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -133,6 +147,7 @@ fn log(db: &Db, c: &Candidate, status: &str, code: Option<&str>, ms: i64) {
 
 #[tauri::command]
 pub async fn ai_generate(
+    app: AppHandle,
     db: State<'_, Db>,
     input: GenerateInput,
 ) -> Result<GenerateOutput, AppError> {
@@ -156,7 +171,27 @@ pub async fn ai_generate(
             temperature: input.temperature,
             max_tokens: input.max_tokens,
         };
-        match providers::generate_text(&cand.record, cand.key.as_deref(), &req).await {
+        let result = if let Some(sid) = input.stream_id.clone() {
+            let emit = |text: &str, reset: bool| {
+                let _ = app.emit(
+                    "ai-chunk",
+                    ChunkEvent {
+                        stream_id: sid.clone(),
+                        text: text.to_string(),
+                        reset,
+                        provider_name: cand.record.display_name.clone(),
+                        model: cand.model.clone(),
+                    },
+                );
+            };
+            emit("", true);
+            let mut on_chunk = |t: &str| emit(t, false);
+            providers::generate_text_stream(&cand.record, cand.key.as_deref(), &req, &mut on_chunk)
+                .await
+        } else {
+            providers::generate_text(&cand.record, cand.key.as_deref(), &req).await
+        };
+        match result {
             Ok(text) => {
                 log(&db, cand, "ok", None, started.elapsed().as_millis() as i64);
                 return Ok(GenerateOutput {
@@ -182,6 +217,7 @@ pub async fn ai_generate(
                         | AppError::Network(_)
                         | AppError::Provider(_)
                         | AppError::BadResponse(_)
+                        | AppError::EmptyReply
                 );
                 last_err = Some(e);
                 if !can_try_next {

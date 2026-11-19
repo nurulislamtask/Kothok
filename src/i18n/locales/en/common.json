@@ -116,7 +116,8 @@
     "provider_error": "The provider returned an error.",
     "bad_response": "The provider sent a response the app could not read.",
     "needs_confirmation": "This provider may charge money. Please confirm to continue.",
-    "not_desktop": "This action only works in the Kothok desktop app."
+    "not_desktop": "This action only works in the Kothok desktop app.",
+    "empty_reply": "The model answered with nothing. Free models are often busy or return empty text — pick another model (free ones are listed first) and try again."
   },
   "common": {
     "close": "Close",
@@ -397,7 +398,12 @@
       "website": "Website",
       "x": "X (Twitter)",
       "linkedin": "LinkedIn"
-    }
+    },
+    "liveTitle": "Writing now…",
+    "liveWith": "{{provider}} · {{model}}",
+    "liveWaiting": "Waiting for the first words…",
+    "liveChars": "{{count}} characters so far",
+    "stillRunning": "A request is still running. Open Content Studio to see it finish."
   },
   "projects": {
     "untitled": "Untitled",
@@ -612,6 +618,24 @@
     "choose": "Choose a model",
     "typeIt": "Type the model name",
     "sync": "Sync models from the provider",
-    "notListed": "This model is not in the provider's list for this job — it may be meant for something else. Choose one from the list."
+    "notListed": "This model is not in the provider's list for this job — it may be meant for something else. Choose one from the list.",
+    "free": "Free",
+    "paid": "Paid",
+    "unknown": "Price not shown by provider",
+    "freeBadge": "free"
+  },
+  "tags": {
+    "title": "Emotion & sound tags",
+    "search": "Search tags",
+    "groups": {
+      "emotion": "Emotion",
+      "vocal": "Sounds",
+      "delivery": "Delivery"
+    },
+    "support": {
+      "yes": "Click a tag to put it in your text at the cursor. ElevenLabs Eleven v3 reads tags like [whispering] as acting directions, not as words.",
+      "maybe": "Gemini voices may follow tags like [whispering], but this is not guaranteed — test a short line first. Plain-language directions (\"say cheerfully:\") also work.",
+      "no": "This voice engine does not understand [tags] and may read them aloud. Use ElevenLabs with the Eleven v3 model, or remove the tags."
+    }
   }
 }

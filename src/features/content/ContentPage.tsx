@@ -19,12 +19,11 @@ import {
   KeyRound,
 } from "lucide-react";
 import { api, isReady } from "../../lib/api";
-import { errorCode, errorDetail, errorText } from "../../lib/errors";
+import { errorText } from "../../lib/errors";
 import { exportText, type TextFormat } from "../../lib/exporters";
 import { cn } from "../../lib/utils";
 import { useContent } from "../../stores/content";
 import { useProviders, defaultProvider } from "../../stores/providers";
-import { useTasks } from "../../stores/tasks";
 import { toast } from "../../stores/toast";
 import { useUi } from "../../stores/ui";
 import SaveToProjectModal from "../../components/SaveToProjectModal";
@@ -35,7 +34,6 @@ import {
   PLATFORMS,
   STYLES,
   TONES,
-  buildPrompt,
   countWords,
   type Op,
   type OutLang,
@@ -121,11 +119,10 @@ export default function ContentPage() {
   const patch = useContent((s) => s.patchSettings);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const runToken = useRef(0);
-  const [busyOp, setBusyOp] = useState<Op | null>(null);
+  const live = useContent((s) => s.live);
+  const paid = useContent((s) => s.paid);
+  const busyOp = live?.op ?? null;
   const [targetLang, setTargetLang] = useState<"bn" | "en">("en");
-  const [paid, setPaid] = useState<{ op: Op; providerId: string } | null>(null);
-  const [allowPaid, setAllowPaid] = useState<string[]>([]);
   const [saveOpen, setSaveOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -160,72 +157,15 @@ export default function ContentPage() {
     return () => clearTimeout(handle);
   }, [assetId, dirty, body, title]);
 
-  const run = async (op: Op, paidList: string[] = allowPaid) => {
-    const st = useContent.getState();
+  const run = (op: Op) => {
     const ta = taRef.current;
-    const start = ta?.selectionStart ?? 0;
-    const end = ta?.selectionEnd ?? 0;
-    const selection = end > start ? st.body.slice(start, end) : "";
-    const bodyAtStart = st.body;
-
-    if (op === "generate" && !st.settings.topic.trim()) {
-      toast.error(t("content.needTopic"));
-      return;
-    }
-    if (op !== "generate" && !st.body.trim()) {
-      toast.error(t("content.needText"));
-      return;
-    }
-
-    const built = buildPrompt(op, st.settings, { body: st.body, selection, targetLang });
-    const token = ++runToken.current;
-    setBusyOp(op);
-    const taskId = useTasks.getState().start(t(`content.ops.${op}`));
-    try {
-      const out = await api.generate({
-        providerId: effective?.id,
-        model: st.settings.model.trim() || undefined,
-        system: built.system,
-        prompt: built.prompt,
-        allowFallback: st.settings.allowFallback,
-        allowPaid: paidList,
-      });
-      if (runToken.current !== token) return;
-      const text = out.text.trim();
-      const cur = useContent.getState();
-      if (op === "generate") {
-        cur.applyAi(text);
-        cur.setLastGenerated(true);
-      } else if (op === "continue") {
-        cur.applyAi(`${cur.body.replace(/\s+$/, "")}\n\n${text}`);
-      } else if (selection) {
-        if (cur.body === bodyAtStart) {
-          cur.applyAi(cur.body.slice(0, start) + text + cur.body.slice(end));
-        } else {
-          const idx = cur.body.indexOf(selection);
-          cur.applyAi(idx >= 0 ? cur.body.slice(0, idx) + text + cur.body.slice(idx + selection.length) : `${cur.body}\n\n${text}`);
-        }
-      } else {
-        cur.applyAi(text);
-      }
-      cur.setNote({ kind: out.fellBack ? "fallback" : "ok", provider: out.providerName, model: out.model });
-    } catch (e) {
-      if (runToken.current !== token) return;
-      if (errorCode(e) === "needs_confirmation") {
-        setPaid({ op, providerId: errorDetail(e) ?? "" });
-      } else {
-        toast.error(errorText(e));
-      }
-    } finally {
-      useTasks.getState().end(taskId);
-      if (runToken.current === token) setBusyOp(null);
-    }
-  };
-
-  const stop = () => {
-    runToken.current++;
-    setBusyOp(null);
-    toast.info(t("content.stopped"));
+    void useContent.getState().run({
+      op,
+      providerId: effective?.id,
+      targetLang,
+      start: ta?.selectionStart ?? 0,
+      end: ta?.selectionEnd ?? 0,
+    });
   };
 
   const copy = async () => {
@@ -254,7 +194,7 @@ export default function ContentPage() {
   const paidName = providers.find((p) => p.id === paid?.providerId)?.displayName ?? paid?.providerId ?? "";
 
   const aiBtn = (op: Op, icon: ReactNode, label: string) => (
-    <Button size="sm" disabled={busy || !hasText || !effective} onClick={() => void run(op)}>
+    <Button size="sm" disabled={busy || !hasText || !effective} onClick={() => run(op)}>
       {icon}
       {label}
     </Button>
@@ -275,7 +215,7 @@ export default function ContentPage() {
           variant="primary"
           className="w-full"
           disabled={busy || !effective}
-          onClick={() => void run("generate")}
+          onClick={() => run("generate")}
         >
           <Sparkles className="size-4" aria-hidden />
           {busyOp === "generate" ? t("content.generating") : t("content.ops.generate")}
@@ -401,7 +341,7 @@ export default function ContentPage() {
 
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
           {lastGenerated && (
-            <Button size="sm" disabled={busy || !effective} onClick={() => void run("generate")}>
+            <Button size="sm" disabled={busy || !effective} onClick={() => run("generate")}>
               <RefreshCw className="size-3.5" aria-hidden />
               {t("content.ops.regenerate")}
             </Button>
@@ -424,7 +364,7 @@ export default function ContentPage() {
             {aiBtn("translate", <Languages className="size-3.5" aria-hidden />, t("content.ops.translate"))}
           </div>
           {busy && (
-            <Button size="sm" variant="danger" onClick={stop}>
+            <Button size="sm" variant="danger" onClick={() => useContent.getState().stop()}>
               <Square className="size-3.5" aria-hidden />
               {t("common.stop")}
             </Button>
@@ -477,9 +417,33 @@ export default function ContentPage() {
           aria-label={t("content.docTitle")}
           className="border-b bg-transparent px-6 py-3 text-lg font-semibold placeholder:text-muted-foreground"
         />
+        {live && (
+          <div className="border-b bg-primary/5 px-6 py-2 text-xs" role="status" aria-live="polite">
+            <div className="flex flex-wrap items-center gap-2 font-medium text-primary">
+              <span className="inline-block size-2 animate-pulse rounded-full bg-primary" aria-hidden />
+              {t("content.liveTitle")}
+              {live.provider && (
+                <span className="font-normal text-muted-foreground">
+                  {t("content.liveWith", { provider: live.provider, model: live.model })}
+                </span>
+              )}
+              <span className="ms-auto font-normal text-muted-foreground">
+                {live.text ? t("content.liveChars", { count: live.text.length }) : t("content.liveWaiting")}
+              </span>
+            </div>
+            {live.op !== "generate" && live.op !== "continue" && live.text && (
+              <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md border bg-card p-2 font-sans text-[13px] leading-6">
+                {live.text}
+              </pre>
+            )}
+          </div>
+        )}
         <textarea
           ref={taRef}
-          value={body}
+          readOnly={live !== null && (live.op === "generate" || live.op === "continue")}
+          value={
+            live?.op === "generate" ? live.text : live?.op === "continue" ? `${body.replace(/\s+$/, "")}\n\n${live.text}` : body
+          }
           onChange={(e) => useContent.getState().setBody(e.target.value)}
           placeholder={t("content.editorPlaceholder")}
           spellCheck={false}
@@ -509,14 +473,8 @@ export default function ContentPage() {
           title={t("content.confirmPaidTitle")}
           body={t("content.confirmPaidBody", { name: paidName })}
           confirmLabel={t("content.confirmPaidYes")}
-          onClose={() => setPaid(null)}
-          onConfirm={() => {
-            const next = [...allowPaid, paid.providerId];
-            const op = paid.op;
-            setAllowPaid(next);
-            setPaid(null);
-            void run(op, next);
-          }}
+          onClose={() => useContent.getState().clearPaid()}
+          onConfirm={() => useContent.getState().confirmPaid()}
         />
       )}
     </div>

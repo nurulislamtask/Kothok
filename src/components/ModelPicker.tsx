@@ -76,6 +76,16 @@ export default function ModelPicker({
 
   const options = models.some((m) => m.id === current) || !current ? models : [{ id: current, displayName: null }, ...models];
 
+  const hasPrice = options.some((m) => m.free === true || m.free === false);
+  // Free models first so they are easy to find; only split into groups when the provider tells prices.
+  const groups: Array<[string, ModelInfo[]]> = hasPrice
+    ? [
+        [t("model.free"), options.filter((m) => m.free === true)],
+        [t("model.paid"), options.filter((m) => m.free === false)],
+        [t("model.unknown"), options.filter((m) => m.free == null)],
+      ]
+    : [["", options]];
+
   const notListed = models.length > 0 && !!current && !models.some((m) => m.id === current);
 
   return (
@@ -84,11 +94,24 @@ export default function ModelPicker({
       {models.length > 0 ? (
         <Select value={current} onChange={(e) => void pick(e.target.value)} aria-label={t("content.model")}>
           {!current && <option value="">{t("model.choose")}</option>}
-          {options.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.displayName && m.displayName !== m.id ? `${m.displayName} (${m.id})` : m.id}
-            </option>
-          ))}
+          {groups.map(([label, list]) =>
+            list.length === 0 ? null : label === "" ? (
+              list.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.displayName && m.displayName !== m.id ? `${m.displayName} (${m.id})` : m.id}
+                </option>
+              ))
+            ) : (
+              <optgroup key={label} label={label}>
+                {list.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.free === true ? `[${t("model.freeBadge")}] ` : ""}
+                    {m.displayName && m.displayName !== m.id ? `${m.displayName} (${m.id})` : m.id}
+                  </option>
+                ))}
+              </optgroup>
+            ),
+          )}
         </Select>
       ) : (
         <Input

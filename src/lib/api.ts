@@ -34,6 +34,8 @@ export interface ProviderInput {
 export interface ModelInfo {
   id: string;
   displayName: string | null;
+  /** true = free, false = paid, null/undefined = the provider does not say. */
+  free?: boolean | null;
 }
 
 export interface TestResult {
@@ -65,6 +67,8 @@ export interface GenerateInput {
   maxTokens?: number;
   allowFallback?: boolean;
   allowPaid?: string[];
+  /** Stream text to the UI through `ai-chunk` events carrying this id. */
+  streamId?: string;
 }
 
 export interface GenerateOutput {

@@ -31,6 +31,8 @@ pub enum AppError {
     Provider(String),
     #[error("unexpected provider response: {0}")]
     BadResponse(String),
+    #[error("the model returned an empty reply")]
+    EmptyReply,
     #[error("{0} may incur charges and needs confirmation")]
     NeedsConfirmation(String),
 }
@@ -51,6 +53,7 @@ impl AppError {
             AppError::Network(_) => "network_error",
             AppError::Provider(_) => "provider_error",
             AppError::BadResponse(_) => "bad_response",
+            AppError::EmptyReply => "empty_reply",
             AppError::NeedsConfirmation(_) => "needs_confirmation",
         }
     }

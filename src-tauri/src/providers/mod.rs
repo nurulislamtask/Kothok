@@ -8,6 +8,7 @@ pub mod gemini_media;
 mod http;
 pub mod image_gen;
 pub mod openai_compat;
+pub mod stream;
 pub mod stt;
 pub mod tts;
 
@@ -178,6 +179,18 @@ pub struct ProviderRecord {
 pub struct ModelInfo {
     pub id: String,
     pub display_name: Option<String>,
+    /// `Some(true)` = free to use, `Some(false)` = paid, `None` = the provider does not say.
+    pub free: Option<bool>,
+}
+
+/// Free models first, then unknown, then paid; each group alphabetical.
+pub fn sort_free_first(models: &mut [ModelInfo]) {
+    let rank = |m: &ModelInfo| match m.free {
+        Some(true) => 0,
+        None => 1,
+        Some(false) => 2,
+    };
+    models.sort_by(|a, b| rank(a).cmp(&rank(b)).then_with(|| a.id.cmp(&b.id)));
 }
 
 pub struct TextRequest {
@@ -254,8 +267,23 @@ pub async fn list_models(
             .map(|m| ModelInfo {
                 id: (*m).to_string(),
                 display_name: None,
+                free: Some(true),
             })
             .collect()),
+        other => Err(AppError::Invalid(format!("unknown adapter {other}"))),
+    }
+}
+
+/// Like `generate_text`, but streams: `on_chunk` receives text as it arrives.
+pub async fn generate_text_stream(
+    p: &ProviderRecord,
+    key: Option<&str>,
+    req: &TextRequest,
+    on_chunk: stream::OnChunk<'_>,
+) -> Result<String, AppError> {
+    match p.adapter.as_str() {
+        "gemini" => stream::gemini_stream(p, key, req, on_chunk).await,
+        "openai_compat" => stream::openai_stream(p, key, req, on_chunk).await,
         other => Err(AppError::Invalid(format!("unknown adapter {other}"))),
     }
 }
@@ -319,6 +347,7 @@ mod model_tests {
         ModelInfo {
             id: id.into(),
             display_name: None,
+            free: None,
         }
     }
 

@@ -43,6 +43,7 @@ pub fn parse_models(v: &Value) -> Vec<ModelInfo> {
                     Some(ModelInfo {
                         id: m.get("model_id")?.as_str()?.to_string(),
                         display_name: m.get("name").and_then(|n| n.as_str()).map(String::from),
+                        free: None,
                     })
                 })
                 .collect()
