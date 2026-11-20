@@ -192,12 +192,15 @@ export interface SttSegment {
   startMs: number;
   endMs: number;
   text: string;
+  speaker?: string;
 }
 export interface TranscribeInput {
   providerId?: string;
   model?: string;
   lang?: string;
   file: string;
+  /** Label who is speaking (Gemini 3.5 Transcribe only). */
+  diarize?: boolean;
 }
 export interface TranscribeOutput {
   text: string;
@@ -299,6 +302,7 @@ export const api = {
   installFfmpeg: () => call<void>("install_ffmpeg"),
   installWhisperEngine: () => call<void>("install_whisper_engine"),
   installWhisperModel: (name: string) => call<void>("install_whisper_model", { name }),
+  audioJoin: (files: string[], gapMs?: number) => call<string>("audio_join", { files, gapMs: gapMs ?? null }),
   voiceProfileClone: (profileId: number, providerId: string) =>
     call<VoiceProfile>("voice_profile_clone", { profileId, providerId }),
 

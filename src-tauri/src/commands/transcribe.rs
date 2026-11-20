@@ -22,6 +22,9 @@ pub struct TranscribeInput {
     pub lang: Option<String>,
     /// File name returned by `save_media`.
     pub file: String,
+    /// Ask the service to label who is speaking (Gemini 3.5 Transcribe only).
+    #[serde(default)]
+    pub diarize: bool,
 }
 
 #[tauri::command]
@@ -59,7 +62,12 @@ pub async fn stt_transcribe(
         (rec, model)
     };
     let is_local = record.adapter == "whisper_local";
-    let limit = if record.adapter == "gemini_stt" {
+    let limit = if record.adapter == "gemini_stt"
+        && crate::providers::gemini_media::is_transcribe_model(&model)
+    {
+        // Uploaded with the Files API, so the inline limit does not apply.
+        500 * 1024 * 1024
+    } else if record.adapter == "gemini_stt" {
         crate::providers::gemini_media::MAX_INLINE_AUDIO_BYTES
     } else {
         stt::MAX_UPLOAD_BYTES
@@ -102,6 +110,7 @@ pub async fn stt_transcribe(
             &ff,
             &path,
             &paths,
+            input.diarize,
         )
         .await
     } else {
@@ -115,6 +124,7 @@ pub async fn stt_transcribe(
             &format!("audio.{ext}"),
             mime_for(ext),
             bytes,
+            input.diarize,
         )
         .await
     };
@@ -141,6 +151,7 @@ async fn transcribe_large(
     ffmpeg: &std::path::Path,
     input: &std::path::Path,
     paths: &AppPaths,
+    diarize: bool,
 ) -> Result<SttOutput, AppError> {
     let limit = if record.adapter == "gemini_stt" {
         crate::providers::gemini_media::MAX_INLINE_AUDIO_BYTES as u64
@@ -172,7 +183,17 @@ async fn transcribe_large(
     for (file, offset) in pieces {
         let step = async {
             let bytes = std::fs::read(&file)?;
-            stt::transcribe(record, key, model, lang, "audio.mp3", "audio/mpeg", bytes).await
+            stt::transcribe(
+                record,
+                key,
+                model,
+                lang,
+                "audio.mp3",
+                "audio/mpeg",
+                bytes,
+                diarize,
+            )
+            .await
         }
         .await;
         match step {
@@ -184,6 +205,7 @@ async fn transcribe_large(
                     start_ms: s.start_ms + offset,
                     end_ms: s.end_ms + offset,
                     text: s.text,
+                    speaker: s.speaker,
                 }));
             }
             Err(e) => {

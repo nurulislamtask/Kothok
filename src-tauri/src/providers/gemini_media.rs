@@ -192,8 +192,12 @@ pub async fn transcribe(
     lang: Option<&str>,
     mime: &str,
     bytes: &[u8],
+    diarize: bool,
 ) -> Result<SttOutput, AppError> {
     let key = key.ok_or(AppError::InvalidKey)?;
+    if is_transcribe_model(model) {
+        return transcribe_dedicated(p, key, model, lang, mime, bytes, diarize).await;
+    }
     if bytes.len() > MAX_INLINE_AUDIO_BYTES {
         return Err(AppError::Invalid(
             "audio is too large for Gemini; compress it with FFmpeg first".into(),
@@ -236,14 +240,273 @@ pub async fn transcribe(
             start_ms: 0,
             end_ms: 0,
             text,
+            speaker: None,
         }],
         has_timing: false,
+    })
+}
+
+/// The dedicated Gemini transcription models (`gemini-3.5-transcribe`) are not called through
+/// `generateContent`; the live variant needs WebSockets and is not supported here.
+pub fn is_transcribe_model(model: &str) -> bool {
+    model.contains("transcribe") && !model.contains("live")
+}
+
+/// Upload with the Files API (resumable protocol) and return the file URI.
+async fn upload_file(
+    p: &ProviderRecord,
+    key: &str,
+    mime: &str,
+    bytes: &[u8],
+) -> Result<String, AppError> {
+    let base = base(p)?;
+    let start = client()
+        .post(format!("{base}/upload/v1beta/files"))
+        .header("x-goog-api-key", key)
+        .header("X-Goog-Upload-Protocol", "resumable")
+        .header("X-Goog-Upload-Command", "start")
+        .header(
+            "X-Goog-Upload-Header-Content-Length",
+            bytes.len().to_string(),
+        )
+        .header("X-Goog-Upload-Header-Content-Type", mime)
+        .json(&json!({ "file": { "display_name": "kothok-audio" } }))
+        .send()
+        .await
+        .map_err(map_send_error)?;
+    let start = check(start).await?;
+    let url = start
+        .headers()
+        .get("x-goog-upload-url")
+        .and_then(|h| h.to_str().ok())
+        .map(String::from)
+        .ok_or_else(|| AppError::BadResponse("upload address missing".into()))?;
+    if !url.starts_with("https://generativelanguage.googleapis.com/") {
+        return Err(AppError::BadResponse("unexpected upload address".into()));
+    }
+    let done = client()
+        .post(url)
+        .header("x-goog-api-key", key)
+        .header("X-Goog-Upload-Offset", "0")
+        .header("X-Goog-Upload-Command", "upload, finalize")
+        .timeout(std::time::Duration::from_secs(1800))
+        .body(bytes.to_vec())
+        .send()
+        .await
+        .map_err(map_send_error)?;
+    let v = read_json(check(done).await?).await?;
+    v.pointer("/file/uri")
+        .and_then(|u| u.as_str())
+        .map(String::from)
+        .ok_or_else(|| AppError::BadResponse("upload returned no file address".into()))
+}
+
+fn bcp47(code: &str) -> Option<&'static str> {
+    Some(match code {
+        "bn" => "bn-BD",
+        "en" => "en-US",
+        "hi" => "hi-IN",
+        "ar" => "ar-XA",
+        "ur" => "ur-PK",
+        "es" => "es-ES",
+        "fr" => "fr-FR",
+        "de" => "de-DE",
+        "ja" => "ja-JP",
+        "ko" => "ko-KR",
+        "pt" => "pt-BR",
+        "ru" => "ru-RU",
+        "tr" => "tr-TR",
+        "id" => "id-ID",
+        _ => return None,
+    })
+}
+
+async fn transcribe_dedicated(
+    p: &ProviderRecord,
+    key: &str,
+    model: &str,
+    lang: Option<&str>,
+    mime: &str,
+    bytes: &[u8],
+    diarize: bool,
+) -> Result<SttOutput, AppError> {
+    if !model_ok(model) {
+        return Err(AppError::Invalid("invalid model name".into()));
+    }
+    let uri = upload_file(p, key, mime, bytes).await?;
+    let mut mode = json!({ "type": "verbatim", "timestamp_granularities": ["word"] });
+    if diarize {
+        mode["diarization_mode"] = json!("speaker");
+    }
+    let mut cfg = json!({ "mode": mode });
+    if let Some(code) = lang
+        .filter(|l| !l.is_empty())
+        .and_then(|l| bcp47(l.split('-').next().unwrap_or(l)))
+    {
+        cfg["language_codes"] = json!([code]);
+    }
+    let body = json!({
+        "model": model,
+        "input": [{ "type": "audio", "uri": uri, "mime_type": mime }],
+        "generation_config": { "transcription_config": cfg }
+    });
+    let resp = client()
+        .post(format!("{}/v1beta/interactions", base(p)?))
+        .header("x-goog-api-key", key)
+        .timeout(std::time::Duration::from_secs(1800))
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_send_error)?;
+    let v = read_json(check(resp).await?).await?;
+    parse_interaction(&v, lang)
+}
+
+fn secs_ms(v: &Value) -> Option<i64> {
+    let s = v.as_str()?.trim_end_matches('s').parse::<f64>().ok()?;
+    Some((s * 1000.0).round() as i64)
+}
+
+/// Turn an Interactions API reply into text plus subtitle-sized segments (grouped by speaker,
+/// pauses and sentence ends).
+pub fn parse_interaction(v: &Value, lang: Option<&str>) -> Result<SttOutput, AppError> {
+    let mut text = String::new();
+    let mut words: Vec<(String, Option<String>, i64, i64)> = Vec::new();
+    for step in v
+        .get("steps")
+        .and_then(|s| s.as_array())
+        .into_iter()
+        .flatten()
+    {
+        for c in step
+            .get("content")
+            .and_then(|c| c.as_array())
+            .into_iter()
+            .flatten()
+        {
+            if c.get("type").and_then(|t| t.as_str()) != Some("text") {
+                continue;
+            }
+            if let Some(t) = c.get("text").and_then(|t| t.as_str()) {
+                if !text.is_empty() {
+                    text.push(' ');
+                }
+                text.push_str(t.trim());
+            }
+            for a in c
+                .get("annotations")
+                .and_then(|a| a.as_array())
+                .into_iter()
+                .flatten()
+            {
+                if a.get("type").and_then(|t| t.as_str()) != Some("word_info") {
+                    continue;
+                }
+                let (Some(w), Some(s), Some(e)) = (
+                    a.get("text").and_then(|t| t.as_str()),
+                    a.get("start_offset").and_then(secs_ms),
+                    a.get("end_offset").and_then(secs_ms),
+                ) else {
+                    continue;
+                };
+                words.push((
+                    w.to_string(),
+                    a.get("speaker").and_then(|s| s.as_str()).map(String::from),
+                    s,
+                    e,
+                ));
+            }
+        }
+    }
+    let text = text.trim().to_string();
+    if text.is_empty() && words.is_empty() {
+        return Err(AppError::BadResponse("no speech was recognised".into()));
+    }
+    let mut segments: Vec<super::stt::SttSegment> = Vec::new();
+    let mut cur: Option<super::stt::SttSegment> = None;
+    let mut count = 0usize;
+    for (w, spk, s, e) in words {
+        let split = match &cur {
+            None => false,
+            Some(c) => {
+                c.speaker != spk
+                    || s - c.end_ms > 900
+                    || count >= 14
+                    || c.text.ends_with(['.', '?', '!', '।'])
+            }
+        };
+        if split {
+            segments.extend(cur.take());
+            count = 0;
+        }
+        match cur.as_mut() {
+            Some(c) => {
+                c.text.push(' ');
+                c.text.push_str(&w);
+                c.end_ms = e;
+            }
+            None => {
+                cur = Some(super::stt::SttSegment {
+                    start_ms: s,
+                    end_ms: e,
+                    text: w,
+                    speaker: spk,
+                });
+            }
+        }
+        count += 1;
+    }
+    segments.extend(cur);
+    let has_timing = !segments.is_empty();
+    if !has_timing {
+        segments.push(super::stt::SttSegment {
+            start_ms: 0,
+            end_ms: 0,
+            text: text.clone(),
+            speaker: None,
+        });
+    }
+    let text = if text.is_empty() {
+        segments
+            .iter()
+            .map(|s| s.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ")
+    } else {
+        text
+    };
+    Ok(SttOutput {
+        text,
+        language: lang.map(String::from).filter(|l| !l.is_empty()),
+        segments,
+        has_timing,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_interaction_words_into_segments() {
+        let v = json!({"steps":[{"type":"model_output","content":[{"type":"text","text":"Hi there. Yes","annotations":[
+            {"type":"word_info","text":"Hi","speaker":"spk_1","start_offset":"0.1s","end_offset":"0.3s"},
+            {"type":"word_info","text":"there.","speaker":"spk_1","start_offset":"0.4s","end_offset":"0.7s"},
+            {"type":"word_info","text":"Yes","speaker":"spk_2","start_offset":"1.0s","end_offset":"1.2s"}]}]}]});
+        let out = parse_interaction(&v, Some("en")).unwrap();
+        assert_eq!(out.segments.len(), 2);
+        assert_eq!(out.segments[0].text, "Hi there.");
+        assert_eq!(out.segments[0].speaker.as_deref(), Some("spk_1"));
+        assert_eq!(out.segments[1].start_ms, 1000);
+        assert!(out.has_timing);
+    }
+
+    #[test]
+    fn detects_dedicated_transcribe_models() {
+        assert!(is_transcribe_model("gemini-3.5-transcribe"));
+        assert!(!is_transcribe_model("gemini-3.5-transcribe-live"));
+        assert!(!is_transcribe_model("gemini-3.8-flash"));
+    }
 
     #[test]
     fn parses_pcm_and_rate() {

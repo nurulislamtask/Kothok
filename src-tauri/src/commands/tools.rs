@@ -282,7 +282,7 @@ mod tests {
 
 pub const WHISPER_MODELS: &[&str] = &["base", "small", "medium"];
 const WHISPER_RELEASE_API: &str =
-    "https://api.github.com/repos/ggml-org/whisper.cpp/releases/latest";
+    "https://api.github.com/repos/ggml-org/whisper.cpp/releases?per_page=40";
 const WHISPER_DOWNLOAD_PREFIX: &str = "https://github.com/ggml-org/whisper.cpp/releases/download/";
 const HF_TREE_API: &str = "https://huggingface.co/api/models/ggerganov/whisper.cpp/tree/main";
 const HF_RESOLVE: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
@@ -424,7 +424,8 @@ pub async fn install_whisper_engine(
 ) -> Result<(), AppError> {
     let dir = whisper_dir(&paths);
     std::fs::create_dir_all(dir.join("models"))?;
-    let release: Value = http()?
+    // Not every release carries Windows binaries, so look through recent ones.
+    let releases: Value = http()?
         .get(WHISPER_RELEASE_API)
         .header("Accept", "application/vnd.github+json")
         .send()
@@ -435,11 +436,18 @@ pub async fn install_whisper_engine(
         .json()
         .await
         .map_err(|e| AppError::BadResponse(e.to_string()))?;
-    let (_, url, digest) = pick_whisper_asset(&release).ok_or_else(|| {
-        AppError::BadResponse(
-            "no Windows build of whisper.cpp was found in the latest release".into(),
-        )
-    })?;
+    let (_, url, digest) = releases
+        .as_array()
+        .and_then(|list| {
+            list.iter()
+                .filter(|r| r.get("draft").and_then(|d| d.as_bool()) != Some(true))
+                .find_map(pick_whisper_asset)
+        })
+        .ok_or_else(|| {
+            AppError::BadResponse(
+                "no Windows build of whisper.cpp was found in the recent releases".into(),
+            )
+        })?;
     let zip_path = paths.temp.join("whisper-engine.zip");
     download_checked(
         &app,
@@ -643,6 +651,7 @@ pub fn parse_whisper_json(v: &Value) -> Result<SttOutput, AppError> {
                         start_ms: s.pointer("/offsets/from")?.as_i64()?,
                         end_ms: s.pointer("/offsets/to")?.as_i64()?,
                         text,
+                        speaker: None,
                     })
                 })
                 .collect()

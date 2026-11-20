@@ -129,7 +129,8 @@ pub fn linked_adapter(source_adapter: &str, category: &str) -> Option<&'static s
 /// Best starting model from a synced list: the newest-looking "flash"/"mini" style model first.
 pub fn pick_default_model(category: &str, models: &[ModelInfo]) -> Option<String> {
     let prefs: &[&str] = match category {
-        "text" | "stt" => &["flash", "mini", "turbo", "versatile"],
+        "text" => &["flash", "mini", "turbo", "versatile"],
+        "stt" => &["transcribe", "flash", "mini", "turbo", "versatile"],
         "clone" => &["v3"],
         _ => &[],
     };
@@ -138,7 +139,7 @@ pub fn pick_default_model(category: &str, models: &[ModelInfo]) -> Option<String
             .iter()
             .filter(|m| {
                 m.id.to_ascii_lowercase().contains(pref)
-                    && !has_any(&m.id, &["lite", "preview-0", "exp"])
+                    && !has_any(&m.id, &["lite", "preview-0", "exp", "live"])
             })
             .collect();
         hits.sort_by(|a, b| b.id.cmp(&a.id));

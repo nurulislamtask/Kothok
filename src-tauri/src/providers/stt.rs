@@ -18,6 +18,9 @@ pub struct SttSegment {
     pub start_ms: i64,
     pub end_ms: i64,
     pub text: String,
+    /// Speaker label when the service separated speakers (for example "spk_1").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -38,9 +41,10 @@ pub async fn transcribe(
     file_name: &str,
     mime: &str,
     bytes: Vec<u8>,
+    diarize: bool,
 ) -> Result<SttOutput, AppError> {
     if p.adapter == "gemini_stt" {
-        return super::gemini_media::transcribe(p, key, model, lang, mime, &bytes).await;
+        return super::gemini_media::transcribe(p, key, model, lang, mime, &bytes, diarize).await;
     }
     let part = Part::bytes(bytes)
         .file_name(file_name.to_string())
@@ -89,6 +93,7 @@ pub fn parse_transcription(v: &Value) -> Result<SttOutput, AppError> {
                         start_ms: (start * 1000.0).round() as i64,
                         end_ms: (end * 1000.0).round() as i64,
                         text: t,
+                        speaker: None,
                     })
                 })
                 .collect()
@@ -100,6 +105,7 @@ pub fn parse_transcription(v: &Value) -> Result<SttOutput, AppError> {
             start_ms: 0,
             end_ms: 0,
             text: text.clone(),
+            speaker: None,
         });
     }
     if text.is_empty() && segments.is_empty() {

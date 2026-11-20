@@ -552,7 +552,38 @@
     "chunks": "Long text was generated in {{count}} parts and joined.",
     "history": "History",
     "noHistory": "Nothing generated yet.",
-    "geminiApiNote": "Gemini speech detects the language from the text; speed and pitch are not available. Output is WAV."
+    "geminiApiNote": "Gemini speech detects the language from the text; speed and pitch are not available. Output is WAV.",
+    "script": "Script",
+    "scriptHint": "Write one block, or add more blocks and give each its own voice (for example a narrator and two characters). Each block is spoken separately and joined into one audio file.",
+    "blockCount": "{{count}} blocks",
+    "addBlock": "Add block",
+    "gap": "Pause between blocks",
+    "style": "Delivery style",
+    "noStyle": "No special style",
+    "customStyle": "Write my own…",
+    "customStylePlaceholder": "for example: sadly, very slowly",
+    "styles": {
+      "whisper": "Whisper",
+      "friendly": "Friendly",
+      "narration": "Narration",
+      "promote": "Promote",
+      "calm": "Calm",
+      "sad": "Sad",
+      "excited": "Excited",
+      "serious": "Serious"
+    },
+    "settings": "Settings",
+    "defaultVoice": "Default voice",
+    "working": "Generating",
+    "stepOf": "Block {{step}} of {{total}}",
+    "keepOpen": "You can open other pages; the audio keeps generating and appears here when done.",
+    "result": "Result",
+    "joined": "Joined from {{count}} blocks.",
+    "makeThumb": "Make thumbnail",
+    "cancelled": "Stopped. The provider may still finish the request in the background.",
+    "doneShort": "Audio is ready",
+    "partFailed": "{{done}} of {{total}} blocks were made before the failure",
+    "joining": "Joining blocks…"
   },
   "vlib": {
     "voices": "Voices",
@@ -588,7 +619,10 @@
     "cloneTitle": "Clone “{{name}}”",
     "noCloneProvider": "No voice-cloning provider is connected. Add ElevenLabs voice cloning in API Manager first (needs a paid ElevenLabs plan).",
     "cloneWarn": "This uploads the voice sample to the provider you pick. Only continue if the speaker agreed (see the consent you saved) and your provider plan allows instant cloning.",
-    "cloneConfirm": "I understand the sample will be uploaded and I have the speaker's permission."
+    "cloneConfirm": "I understand the sample will be uploaded and I have the speaker's permission.",
+    "builtinNote": "These voices are always listed here, with or without an API key. Previews need a connected key because the audio is generated live.",
+    "needKeyToHear": "No voice provider connected yet. Add your Gemini key once and previews and speech work.",
+    "cloneWhy": "Why an API is needed: cloning is done by a voice service (ElevenLabs), not on this PC. The app sends your consented sample to that service and keeps the voice it returns. ElevenLabs instant cloning needs a paid plan, so there is no free way to do this inside the app."
   },
   "audio": {
     "noProvider": "No transcription provider is set up",
@@ -599,7 +633,7 @@
     "modelPlaceholder": "Save a model in API Manager",
     "auto": "Auto-detect",
     "paidNote": "This provider is marked as paid — transcription may be billed to your account.",
-    "noSpeakers": "Speaker detection is not supported in this version.",
+    "noSpeakers": "Speaker detection works with the Gemini 3.5 Transcribe model. This model does not support it.",
     "transcribe": "Transcribe",
     "transcribing": "Transcribing…",
     "result": "Transcript",
@@ -611,7 +645,9 @@
     "exportSrt": "Export SRT",
     "toSubtitles": "Edit in Subtitle Studio",
     "noTiming": "This model returned text without timestamps, so subtitle export is not available.",
-    "bigFile": "Large file: it will be compressed with FFmpeg before upload, and is not loaded into the player."
+    "bigFile": "Large file: it will be compressed with FFmpeg before upload, and is not loaded into the player.",
+    "diarize": "Detect who is speaking",
+    "diarizeHint": "Gemini 3.5 Transcribe labels speakers (up to 8) and gives timing for subtitles. Limit 30 minutes per file with this on; with 3+ speakers Google marks it experimental."
   },
   "subs": {
     "noCues": "No subtitle cues were found in that file.",
@@ -663,7 +699,24 @@
     "support": {
       "yes": "Click a tag to put it in your text at the cursor. ElevenLabs Eleven v3 reads tags like [whispering] as acting directions, not as words.",
       "maybe": "Gemini voices may follow tags like [whispering], but this is not guaranteed — test a short line first. Plain-language directions (\"say cheerfully:\") also work.",
-      "no": "This voice engine does not understand [tags] and may read them aloud. Use ElevenLabs with the Eleven v3 model, or remove the tags."
+      "no": "This voice engine does not understand [tags] and may read them aloud. Use ElevenLabs with the Eleven v3 model, or remove the tags.",
+      "maybeAngle": "Gemini uses tags like <laugh> or <short pause> inside the text, and you can set a delivery style per block. Results vary, so test a short line first."
     }
+  },
+  "vpick": {
+    "search": "Search voices",
+    "female": "Female",
+    "male": "Male",
+    "favorites": "Favorites",
+    "uses": {
+      "story": "Story",
+      "product": "Product / ads",
+      "explainer": "Explainer",
+      "casual": "Casual / vlog"
+    },
+    "metaNote": "Style words come from Google. Gender and suggested use are our guide only: Google does not publish a gender for these voices, so listen before you decide.",
+    "noPreview": "Connect a Gemini key to hear previews. You can still browse and favorite voices.",
+    "selected": "Selected",
+    "pick": "Use this voice"
   }
 }

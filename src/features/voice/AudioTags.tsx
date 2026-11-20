@@ -13,29 +13,39 @@ export const TAG_GROUPS: ReadonlyArray<{ id: "emotion" | "vocal" | "delivery"; t
   { id: "delivery", tags: ["whispering", "singing", "slowly", "softly", "shouting", "fast", "voice breaking", "pause"] },
 ];
 
-/** Whether the selected engine understands `[tag]` markup. Other engines would read tags aloud. */
-export function tagSupport(adapter: string | undefined, model: string): "yes" | "maybe" | "no" {
-  if (adapter === "elevenlabs_clone") return model.includes("v3") ? "yes" : "no";
-  if (adapter === "gemini_tts") return "maybe";
-  return "no";
+/** Inline sound tags that Google's Gemini speech documentation and AI Studio use: `<laugh>`. */
+export const GEMINI_TAGS: ReadonlyArray<{ id: "emotion" | "vocal" | "delivery"; tags: readonly string[] }> = [
+  { id: "vocal", tags: ["laugh", "chuckle", "cackle", "sigh", "gasp", "breath", "argh", "cheer"] },
+  { id: "delivery", tags: ["short pause"] },
+];
+
+export type TagSyntax = "square" | "angle";
+
+/** Whether the selected engine understands inline tags, and in which syntax. */
+export function tagSupport(adapter: string | undefined, model: string): { level: "yes" | "maybe" | "no"; syntax: TagSyntax } {
+  if (adapter === "elevenlabs_clone") return { level: model.includes("v3") ? "yes" : "no", syntax: "square" };
+  if (adapter === "gemini_tts") return { level: "maybe", syntax: "angle" };
+  return { level: "no", syntax: "square" };
 }
 
 export default function AudioTags({
   onInsert,
   support,
+  syntax,
 }: {
   onInsert: (tag: string) => void;
   support: "yes" | "maybe" | "no";
+  syntax: TagSyntax;
 }) {
   const { t } = useTranslation();
   const [q, setQ] = useState("");
   const groups = useMemo(
     () =>
-      TAG_GROUPS.map((g) => ({
+      (syntax === "angle" ? GEMINI_TAGS : TAG_GROUPS).map((g) => ({
         ...g,
         tags: g.tags.filter((x) => x.includes(q.trim().toLowerCase())),
       })).filter((g) => g.tags.length > 0),
-    [q],
+    [q, syntax],
   );
 
   return (
@@ -48,7 +58,7 @@ export default function AudioTags({
         </div>
       </div>
       <p className={support === "yes" ? "mb-2 text-xs text-muted-foreground" : "mb-2 text-xs text-amber-500"}>
-        {t(`tags.support.${support}`)}
+        {t(`tags.support.${support}${syntax === "angle" ? "Angle" : ""}`)}
       </p>
       <div className="max-h-48 space-y-2 overflow-y-auto">
         {groups.map((g) => (
@@ -59,10 +69,10 @@ export default function AudioTags({
                 <button
                   key={tag}
                   type="button"
-                  onClick={() => onInsert(`[${tag}]`)}
+                  onClick={() => onInsert(syntax === "angle" ? `<${tag}>` : `[${tag}]`)}
                   className="rounded-md border bg-muted/40 px-2 py-1 text-xs hover:bg-muted"
                 >
-                  [{tag}]
+                  {syntax === "angle" ? `<${tag}>` : `[${tag}]`}
                 </button>
               ))}
             </div>

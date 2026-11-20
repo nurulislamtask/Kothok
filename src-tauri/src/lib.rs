@@ -38,6 +38,7 @@ pub fn run() {
             commands::media::save_media,
             commands::media::read_media,
             commands::media::discard_media,
+            commands::media::audio_join,
             commands::library::list_projects,
             commands::library::create_project,
             commands::library::rename_project,

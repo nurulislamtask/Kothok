@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Captions, Copy, FileAudio, FolderPlus, Languages } from "lucide-react";
-import { api, isReady, type TranscribeOutput } from "../../lib/api";
+import { api, isReady, savedModel, type TranscribeOutput } from "../../lib/api";
 import { errorText } from "../../lib/errors";
 import { exportPlain } from "../../lib/exporters";
 import { defaultProvider, useProviders } from "../../stores/providers";
@@ -23,6 +23,25 @@ const LANGS: ReadonlyArray<[string, string]> = [
   ["ar", "العربية"],
 ];
 
+/** Plain text with "Speaker N:" lines when the service separated speakers. */
+export function withSpeakers(out: TranscribeOutput): string {
+  if (!out.segments.some((s) => s.speaker)) return out.text;
+  const names = new Map<string, number>();
+  const lines: string[] = [];
+  let last = "";
+  for (const s of out.segments) {
+    const k = s.speaker ?? "";
+    if (!names.has(k)) names.set(k, names.size + 1);
+    if (k !== last) {
+      lines.push(`${k ? `Speaker ${names.get(k)}: ` : ""}${s.text}`);
+      last = k;
+    } else {
+      lines[lines.length - 1] += ` ${s.text}`;
+    }
+  }
+  return lines.join("\n\n");
+}
+
 export function toSegments(out: TranscribeOutput): Segment[] {
   return out.segments.map((s) => ({ start: s.startMs, end: s.endMs, text: s.text }));
 }
@@ -38,6 +57,9 @@ export default function AudioPage() {
 
   const [file, setFile] = useState<{ media: string; label: string; url: string; big: boolean } | null>(null);
   const [model, setModel] = useState("");
+  const [diarize, setDiarize] = useState(true);
+  const modelName = model || (provider ? savedModel(provider) : "");
+  const canDiarize = provider?.adapter === "gemini_stt" && modelName.includes("transcribe") && !modelName.includes("live");
   const [lang, setLang] = useState("bn");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TranscribeOutput | null>(null);
@@ -78,9 +100,9 @@ export default function AudioPage() {
     if (!file || !provider) return;
     setBusy(true);
     try {
-      const out = await api.transcribe({ providerId: provider.id, model: model.trim() || undefined, lang: lang || undefined, file: file.media });
+      const out = await api.transcribe({ providerId: provider.id, model: model.trim() || undefined, lang: lang || undefined, file: file.media, diarize: diarize && canDiarize });
       setResult(out);
-      setText(out.text);
+      setText(withSpeakers(out));
       if (!out.hasTiming) toast.info(t("audio.noTiming"));
     } catch (e) {
       toast.error(errorText(e));
@@ -142,7 +164,17 @@ export default function AudioPage() {
         </Field>
       </div>
       {provider?.costClass === "paid" && <p className="text-xs text-amber-500">{t("audio.paidNote")}</p>}
-      <p className="text-xs text-muted-foreground">{t("audio.noSpeakers")}</p>
+      {canDiarize ? (
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={diarize} onChange={(e) => setDiarize(e.target.checked)} />
+          <span>
+            {t("audio.diarize")}
+            <span className="block text-xs text-muted-foreground">{t("audio.diarizeHint")}</span>
+          </span>
+        </label>
+      ) : (
+        <p className="text-xs text-muted-foreground">{t("audio.noSpeakers")}</p>
+      )}
 
       <Button variant="primary" disabled={!file || busy} onClick={() => void run()}>
         <Languages className="size-4" aria-hidden />
