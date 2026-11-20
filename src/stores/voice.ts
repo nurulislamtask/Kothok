@@ -25,6 +25,8 @@ export interface JobArgs {
   styleCapable: boolean;
   /** ElevenLabs v3: the chosen emotion is written as a [tag] at the start of the block. */
   tagCapable?: boolean;
+  /** Used for Gemini blocks that have no style of their own (automatic emotion). */
+  defaultStyle?: string;
 }
 
 export interface JobState {
@@ -49,6 +51,7 @@ interface VoiceState {
   addBlock: (after?: string) => void;
   removeBlock: (id: string) => void;
   setScript: (text: string) => void;
+  setSegments: (segs: Array<{ text: string; style: string }>) => void;
   run: (a: JobArgs) => Promise<void>;
   cancel: () => void;
   clearResult: () => void;
@@ -77,6 +80,11 @@ export const useVoice = create<VoiceState>((set, get) => ({
     }),
   removeBlock: (id) => set((s) => (s.blocks.length <= 1 ? s : { blocks: s.blocks.filter((b) => b.id !== id) })),
   setScript: (text) => set({ blocks: [newBlock(text)], result: null }),
+  setSegments: (segs) =>
+    set((s) => {
+      const voiceId = s.blocks[0]?.voiceId ?? "";
+      return { blocks: segs.map((g) => ({ ...newBlock(g.text), voiceId, style: g.style })), result: null };
+    }),
   clearResult: () => set({ result: null }),
   cancel: () => {
     token++;
@@ -103,18 +111,15 @@ export const useVoice = create<VoiceState>((set, get) => ({
       for (let i = 0; i < todo.length; i++) {
         const b = todo[i]!;
         set({ job: { step: i + 1, total: todo.length, startedAt, label: b.text.trim().slice(0, 50) } });
-        const text =
-          a.styleCapable && b.style.trim()
-            ? `Say ${b.style.trim()}: ${b.text}`
-            : a.tagCapable && b.style.trim()
-              ? `[${b.style.trim()}] ${b.text}`
-              : b.text;
+        const text = a.tagCapable && b.style.trim() ? `[${b.style.trim()}] ${b.text}` : b.text;
+        const style = a.styleCapable ? b.style.trim() || a.defaultStyle?.trim() || undefined : undefined;
         const out = await api.ttsSynthesize({
           providerId: a.providerId,
           voiceId: (b.voiceId || st.voiceId).trim(),
           lang: a.lang,
           model: a.model,
           text,
+          style,
           speed: a.speed,
           pitch: a.pitch,
         });

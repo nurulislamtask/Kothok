@@ -160,6 +160,8 @@ export interface SynthInput {
   text: string;
   speed?: number;
   pitch?: number;
+  /** Delivery / emotion instruction, Gemini only. */
+  style?: string;
 }
 export interface SynthOutput {
   historyId: number;

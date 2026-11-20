@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, FolderPlus, Loader2, Mic, Play, Plus, Trash2, Users, X } from "lucide-react";
+import { Download, FolderPlus, Loader2, Mic, Play, Plus, Sparkles, Trash2, Users, X } from "lucide-react";
 import { api, isReady, savedModel, type TtsHistoryItem, type VoiceFavorite, type VoiceInfo } from "../../lib/api";
 import { errorText } from "../../lib/errors";
 import { safeName } from "../../lib/exporters";
@@ -18,6 +18,28 @@ import AudioTags, { TAG_GROUPS, tagSupport } from "./AudioTags";
 import VoicePicker from "./VoicePicker";
 import { catalogVoice, GEMINI_CATALOG, GEMINI_STYLES } from "./voiceCatalog";
 import { VOICE_LANGS } from "./voiceLangs";
+
+/** Used when "automatic emotion" is on and a block has no style of its own. */
+const AUTO_STYLE = "naturally and expressively, like a skilled storyteller, with emotion that matches the meaning of each sentence";
+
+function parseSegments(raw: string): Array<{ text: string; style: string }> | null {
+  const a = raw.indexOf("[");
+  const b = raw.lastIndexOf("]");
+  if (a < 0 || b <= a) return null;
+  try {
+    const v = JSON.parse(raw.slice(a, b + 1)) as unknown;
+    if (!Array.isArray(v)) return null;
+    const out = v
+      .map((x) => x as { text?: unknown; style?: unknown })
+      .filter((x) => typeof x.text === "string" && x.text.trim())
+      .map((x) => ({ text: String(x.text).trim(), style: typeof x.style === "string" ? x.style.trim() : "" }));
+    return out.length > 0 ? out : null;
+  } catch {
+    return null;
+  }
+}
+
+const squash = (s: string) => s.replace(/\s+/g, "");
 
 function Card({ title, children, aside }: { title?: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
@@ -59,6 +81,8 @@ export default function VoicePage() {
   const [speed, setSpeed] = useState(1);
   const [pitch, setPitch] = useState(0);
   const [gapMs, setGapMs] = useState(350);
+  const [autoEmotion, setAutoEmotion] = useState(true);
+  const [directing, setDirecting] = useState(false);
   const [current, setCurrent] = useState<{ file: string; url: string; parts: number } | null>(null);
   const [history, setHistory] = useState<TtsHistoryItem[]>([]);
   const [saving, setSaving] = useState(false);
@@ -164,8 +188,38 @@ export default function VoicePage() {
       pitch: isGoogle ? pitch : undefined,
       gapMs,
       styleCapable: isGemini,
+      defaultStyle: autoEmotion ? AUTO_STYLE : undefined,
       tagCapable: support.level === "yes" && support.syntax === "square",
     });
+  };
+
+  const direct = async () => {
+    const full = blocks.map((b) => b.text.trim()).filter(Boolean).join("\n\n");
+    if (!full) {
+      toast.error(t("voice.needText"));
+      return;
+    }
+    setDirecting(true);
+    try {
+      const out = await api.generate({
+        system:
+          "You are a voice director. Split the script into consecutive segments of at most 600 characters, cutting at sentence ends, and give each segment a short English delivery instruction describing the emotion and pace that fits its meaning (for example: 'warm and gentle', 'tense, slightly faster', 'sad, slow, low voice', 'cheerful and energetic', 'serious and firm'). Never change, translate, add or remove any word of the script: the segments joined together must equal the script exactly. Reply with a JSON array only: [{\"text\": \"...\", \"style\": \"...\"}].",
+        prompt: full.slice(0, 12000),
+        temperature: 0.4,
+        maxTokens: 8000,
+      });
+      const segs = parseSegments(out.text);
+      if (!segs || squash(segs.map((s) => s.text).join("")) !== squash(full.slice(0, 12000))) {
+        toast.error(t("voice.directorBad"));
+        return;
+      }
+      sel.setSegments(segs);
+      toast.success(t("voice.directorDone", { count: segs.length }));
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      setDirecting(false);
+    }
   };
 
   const download = async (file: string, name: string) => {
@@ -310,6 +364,18 @@ export default function VoicePage() {
               <Plus className="size-3.5" aria-hidden />
               {t("voice.addBlock")}
             </Button>
+            {isGemini && (
+              <Button size="sm" disabled={directing} onClick={() => void direct()} title={t("voice.directorHint")}>
+                {directing ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5" aria-hidden />}
+                {t("voice.directorBtn")}
+              </Button>
+            )}
+            {isGemini && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground" title={t("voice.autoEmotionHint")}>
+                <input type="checkbox" checked={autoEmotion} onChange={(e) => setAutoEmotion(e.target.checked)} />
+                {t("voice.autoEmotion")}
+              </label>
+            )}
             {blocks.length > 1 && (
               <label className="flex items-center gap-2 text-xs text-muted-foreground">
                 {t("voice.gap")}

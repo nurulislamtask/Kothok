@@ -33,6 +33,7 @@ pub struct TtsRequest {
     pub text: String,
     pub speed: f32,
     pub pitch: f32,
+    pub style: Option<String>,
 }
 
 pub struct AudioOut {
@@ -203,6 +204,15 @@ pub async fn synthesize(
     })
 }
 
+/// Gemini follows a plain-language instruction written as "Say <style>: <text>". It has to be
+/// repeated on every chunk, otherwise only the first part of a long text gets the emotion.
+pub fn with_style(style: Option<&str>, text: &str) -> String {
+    match style.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(s) => format!("Say {s}: {text}"),
+        None => text.to_string(),
+    }
+}
+
 async fn synthesize_gemini(
     p: &ProviderRecord,
     key: Option<&str>,
@@ -220,8 +230,9 @@ async fn synthesize_gemini(
     let mut pcm: Vec<u8> = Vec::new();
     let mut rate = 24_000;
     for part in &parts {
+        let spoken = with_style(req.style.as_deref(), part);
         let (chunk, r) =
-            super::gemini_media::synthesize_pcm(p, key, model, &req.voice_id, part).await?;
+            super::gemini_media::synthesize_pcm(p, key, model, &req.voice_id, &spoken).await?;
         rate = r;
         pcm.extend_from_slice(&chunk);
         if pcm.len() > MAX_AUDIO_BYTES {
@@ -315,6 +326,13 @@ async fn openai_synth(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn style_is_added_to_every_chunk() {
+        assert_eq!(with_style(Some("warmly"), "Hi"), "Say warmly: Hi");
+        assert_eq!(with_style(Some("  "), "Hi"), "Hi");
+        assert_eq!(with_style(None, "Hi"), "Hi");
+    }
+
     use super::*;
 
     #[test]

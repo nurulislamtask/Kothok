@@ -62,6 +62,8 @@ pub struct SynthInput {
     pub text: String,
     pub speed: Option<f32>,
     pub pitch: Option<f32>,
+    /// Delivery / emotion instruction (Gemini only), applied to every chunk of the text.
+    pub style: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -101,6 +103,7 @@ pub async fn tts_synthesize(
         text: input.text.clone(),
         speed: input.speed.unwrap_or(1.0),
         pitch: input.pitch.unwrap_or(0.0),
+        style: input.style.clone(),
     };
 
     let started = Instant::now();
