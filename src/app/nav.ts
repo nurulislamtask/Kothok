@@ -34,6 +34,14 @@ export interface NavItem {
   page?: LazyExoticComponent<ComponentType>;
 }
 
+/** Sidebar sections; every route id appears in exactly one. */
+export const NAV_GROUPS: ReadonlyArray<{ id: "start" | "create" | "audio" | "manage"; items: readonly RouteId[] }> = [
+  { id: "start", items: ["dashboard"] },
+  { id: "create", items: ["content", "thumbnail", "subtitles"] },
+  { id: "audio", items: ["voice", "voiceLibrary", "audio"] },
+  { id: "manage", items: ["projects", "apiManager", "settings"] },
+];
+
 export const NAV: readonly NavItem[] = [
   { id: "dashboard", icon: LayoutDashboard, phase: 2, page: lazy(() => import("../features/dashboard/DashboardPage")) },
   { id: "content", icon: PenLine, phase: 4, page: lazy(() => import("../features/content/ContentPage")) },

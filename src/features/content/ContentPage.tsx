@@ -17,6 +17,8 @@ import {
   Wand2,
   Copy,
   KeyRound,
+  Mic,
+  Image as ImageIcon,
 } from "lucide-react";
 import { api, isReady } from "../../lib/api";
 import { errorText } from "../../lib/errors";
@@ -26,6 +28,7 @@ import { useContent } from "../../stores/content";
 import { useProviders, defaultProvider } from "../../stores/providers";
 import { toast } from "../../stores/toast";
 import { useUi } from "../../stores/ui";
+import { useVoice } from "../../stores/voice";
 import SaveToProjectModal from "../../components/SaveToProjectModal";
 import { Button, ConfirmModal, Field, Input, Select, Textarea } from "../../components/ui/controls";
 import {
@@ -382,6 +385,21 @@ export default function ContentPage() {
             <Button size="sm" disabled={!hasText} onClick={() => setSaveOpen(true)}>
               <Save className="size-3.5" aria-hidden />
               {t("common.save")}
+            </Button>
+            <Button
+              size="sm"
+              disabled={!hasText}
+              onClick={() => {
+                useVoice.getState().setScript(body);
+                setRoute("voice");
+              }}
+            >
+              <Mic className="size-3.5" aria-hidden />
+              {t("content.toVoice")}
+            </Button>
+            <Button size="sm" disabled={!hasText} onClick={() => setRoute("thumbnail")}>
+              <ImageIcon className="size-3.5" aria-hidden />
+              {t("content.toThumb")}
             </Button>
             <div className="relative">
               <Button size="sm" disabled={!hasText} onClick={() => setExportOpen((o) => !o)}>

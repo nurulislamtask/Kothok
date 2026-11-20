@@ -13,7 +13,12 @@
     "subtitles": "সাবটাইটেল স্টুডিও",
     "projects": "প্রজেক্টস",
     "apiManager": "এপিআই ম্যানেজার",
-    "settings": "সেটিংস"
+    "settings": "সেটিংস",
+    "group": {
+      "create": "তৈরি করুন",
+      "audio": "অডিও",
+      "manage": "ব্যবস্থাপনা"
+    }
   },
   "topbar": {
     "searchPlaceholder": "পেজ খুঁজুন…",
@@ -423,7 +428,9 @@
     "liveWith": "{{provider}} · {{model}}",
     "liveWaiting": "প্রথম কথাগুলোর জন্য অপেক্ষা করছি…",
     "liveChars": "এ পর্যন্ত {{count}} অক্ষর",
-    "stillRunning": "একটি কাজ এখনও চলছে। শেষ হওয়া দেখতে Content Studio খুলুন।"
+    "stillRunning": "একটি কাজ এখনও চলছে। শেষ হওয়া দেখতে Content Studio খুলুন।",
+    "toVoice": "ভয়েস বানান",
+    "toThumb": "থাম্বনেইল বানান"
   },
   "projects": {
     "untitled": "শিরোনামহীন",

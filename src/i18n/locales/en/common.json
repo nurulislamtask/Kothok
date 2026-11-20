@@ -13,7 +13,12 @@
     "subtitles": "Subtitle Studio",
     "projects": "Projects",
     "apiManager": "API Manager",
-    "settings": "Settings"
+    "settings": "Settings",
+    "group": {
+      "create": "Create",
+      "audio": "Audio",
+      "manage": "Manage"
+    }
   },
   "topbar": {
     "searchPlaceholder": "Jump to a page…",
@@ -423,7 +428,9 @@
     "liveWith": "{{provider}} · {{model}}",
     "liveWaiting": "Waiting for the first words…",
     "liveChars": "{{count}} characters so far",
-    "stillRunning": "A request is still running. Open Content Studio to see it finish."
+    "stillRunning": "A request is still running. Open Content Studio to see it finish.",
+    "toVoice": "Make voice",
+    "toThumb": "Make thumbnail"
   },
   "projects": {
     "untitled": "Untitled",
