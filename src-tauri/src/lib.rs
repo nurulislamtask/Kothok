@@ -2,6 +2,7 @@ mod commands;
 mod credentials;
 mod db;
 mod error;
+mod keypool;
 mod paths;
 mod providers;
 
@@ -21,6 +22,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::settings::get_setting,
             commands::settings::set_setting,
+            keypool::pool_list,
+            keypool::pool_add,
+            keypool::pool_remove,
+            keypool::pool_reset,
             commands::providers::list_providers,
             commands::providers::save_provider,
             commands::providers::delete_provider,

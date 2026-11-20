@@ -194,6 +194,9 @@ pub fn delete_provider(db: State<'_, Db>, id: String) -> Result<(), AppError> {
     let _ = linked;
     // A borrowed key belongs to its owner and stays.
     if own_key {
+        if let Ok(conn) = db.0.lock() {
+            crate::keypool::forget_owner(&conn, &id);
+        }
         credentials::delete(&id)?;
     }
     Ok(())

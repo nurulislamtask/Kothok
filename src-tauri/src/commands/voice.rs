@@ -89,7 +89,6 @@ pub async fn tts_synthesize(
         return Err(AppError::Invalid("choose a voice first".into()));
     }
     let rec = tts_provider(&db, &input.provider_id)?;
-    let key = crate::providers::key_for(&rec)?;
     let model = input
         .model
         .clone()
@@ -105,7 +104,11 @@ pub async fn tts_synthesize(
     };
 
     let started = Instant::now();
-    let result = tts::synthesize(&rec, key.as_deref(), &req).await;
+    let result = crate::keypool::with_keys(&db, &rec, |key| {
+        let (rec, req) = (&rec, &req);
+        async move { tts::synthesize(rec, key.as_deref(), req).await }
+    })
+    .await;
     if let Ok(conn) = db.0.lock() {
         let (status, code) = match &result {
             Ok(_) => ("ok", None),

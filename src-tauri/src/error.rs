@@ -23,8 +23,9 @@ pub enum AppError {
     NoModel,
     #[error("API key missing or rejected")]
     InvalidKey,
+    /// Rate or quota limit; the number is how many seconds the provider asked us to wait, if known.
     #[error("quota or rate limit exceeded")]
-    Quota,
+    Quota(Option<u64>),
     #[error("network error: {0}")]
     Network(String),
     #[error("provider error: {0}")]
@@ -49,7 +50,7 @@ impl AppError {
             AppError::NoProvider => "no_provider",
             AppError::NoModel => "no_model",
             AppError::InvalidKey => "invalid_key",
-            AppError::Quota => "quota_exceeded",
+            AppError::Quota(_) => "quota_exceeded",
             AppError::Network(_) => "network_error",
             AppError::Provider(_) => "provider_error",
             AppError::BadResponse(_) => "bad_response",

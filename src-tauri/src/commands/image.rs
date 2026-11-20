@@ -72,8 +72,6 @@ pub async fn ai_generate_image(
             .ok_or(AppError::NoModel)?;
         (rec, model)
     };
-    let key = crate::providers::key_for(&record)?;
-
     let started = Instant::now();
     let req = ImageRequest {
         model: model.clone(),
@@ -81,7 +79,11 @@ pub async fn ai_generate_image(
         size: input.size,
         aspect: input.aspect,
     };
-    let result = generate_image(&record, key.as_deref(), &req).await;
+    let result = crate::keypool::with_keys(&db, &record, |key| {
+        let (record, req) = (&record, &req);
+        async move { generate_image(record, key.as_deref(), req).await }
+    })
+    .await;
 
     if let Ok(conn) = db.0.lock() {
         let (status, code) = match &result {

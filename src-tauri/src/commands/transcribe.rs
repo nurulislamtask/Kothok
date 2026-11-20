@@ -85,7 +85,6 @@ pub async fn stt_transcribe(
     } else {
         None
     };
-    let key = crate::providers::key_for(&record)?;
     let started = Instant::now();
     let result = if is_local {
         let (pp, ff, mm, ll) = (
@@ -102,30 +101,48 @@ pub async fn stt_transcribe(
         .map_err(|e| AppError::Invalid(e.to_string()))
         .and_then(|r| r)
     } else if let Some(ff) = ffmpeg {
-        transcribe_large(
-            &record,
-            key.as_deref(),
-            &model,
-            input.lang.as_deref(),
-            &ff,
-            &path,
-            &paths,
-            input.diarize,
-        )
+        crate::keypool::with_keys(&db, &record, |key| {
+            let (record, model, lang, ff, path, paths) =
+                (&record, &model, input.lang.as_deref(), &ff, &path, &paths);
+            async move {
+                transcribe_large(
+                    record,
+                    key.as_deref(),
+                    model,
+                    lang,
+                    ff,
+                    path,
+                    paths,
+                    input.diarize,
+                )
+                .await
+            }
+        })
         .await
     } else {
         let bytes = std::fs::read(&path)?;
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        stt::transcribe(
-            &record,
-            key.as_deref(),
-            &model,
-            input.lang.as_deref(),
-            &format!("audio.{ext}"),
-            mime_for(ext),
-            bytes,
-            input.diarize,
-        )
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_string();
+        crate::keypool::with_keys(&db, &record, |key| {
+            let (record, model, lang, bytes, ext) =
+                (&record, &model, input.lang.as_deref(), &bytes, &ext);
+            async move {
+                stt::transcribe(
+                    record,
+                    key.as_deref(),
+                    model,
+                    lang,
+                    &format!("audio.{ext}"),
+                    mime_for(ext),
+                    bytes.clone(),
+                    input.diarize,
+                )
+                .await
+            }
+        })
         .await
     };
     if let Ok(conn) = db.0.lock() {

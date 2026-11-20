@@ -171,26 +171,39 @@ pub async fn ai_generate(
             temperature: input.temperature,
             max_tokens: input.max_tokens,
         };
-        let result = if let Some(sid) = input.stream_id.clone() {
-            let emit = |text: &str, reset: bool| {
-                let _ = app.emit(
-                    "ai-chunk",
-                    ChunkEvent {
-                        stream_id: sid.clone(),
-                        text: text.to_string(),
-                        reset,
-                        provider_name: cand.record.display_name.clone(),
-                        model: cand.model.clone(),
-                    },
-                );
-            };
-            emit("", true);
-            let mut on_chunk = |t: &str| emit(t, false);
-            providers::generate_text_stream(&cand.record, cand.key.as_deref(), &req, &mut on_chunk)
-                .await
-        } else {
-            providers::generate_text(&cand.record, cand.key.as_deref(), &req).await
-        };
+        let result = crate::keypool::with_keys(&db, &cand.record, |key| {
+            let sid = input.stream_id.clone();
+            let (app, req) = (&app, &req);
+            async move {
+                if let Some(sid) = sid {
+                    let emit = |text: &str, reset: bool| {
+                        let _ = app.emit(
+                            "ai-chunk",
+                            ChunkEvent {
+                                stream_id: sid.clone(),
+                                text: text.to_string(),
+                                reset,
+                                provider_name: cand.record.display_name.clone(),
+                                model: cand.model.clone(),
+                            },
+                        );
+                    };
+                    // A new key means a new attempt: the UI discards what the last one wrote.
+                    emit("", true);
+                    let mut on_chunk = |t: &str| emit(t, false);
+                    providers::generate_text_stream(
+                        &cand.record,
+                        key.as_deref(),
+                        req,
+                        &mut on_chunk,
+                    )
+                    .await
+                } else {
+                    providers::generate_text(&cand.record, key.as_deref(), req).await
+                }
+            }
+        })
+        .await;
         match result {
             Ok(text) => {
                 log(&db, cand, "ok", None, started.elapsed().as_millis() as i64);
@@ -213,7 +226,7 @@ pub async fn ai_generate(
                 let can_try_next = matches!(
                     e,
                     AppError::InvalidKey
-                        | AppError::Quota
+                        | AppError::Quota(_)
                         | AppError::Network(_)
                         | AppError::Provider(_)
                         | AppError::BadResponse(_)
