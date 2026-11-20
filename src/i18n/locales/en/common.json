@@ -614,7 +614,10 @@
     "cancelled": "Stopped. The provider may still finish the request in the background.",
     "doneShort": "Audio is ready",
     "partFailed": "{{done}} of {{total}} blocks were made before the failure",
-    "joining": "Joining blocks…"
+    "joining": "Joining blocks…",
+    "emotion": "Emotion",
+    "noEmotion": "No emotion",
+    "noEmotionHint": "This voice engine has no emotion control, only speed. For emotion use Gemini voices (style menu) or ElevenLabs v3 (emotion menu and tags)."
   },
   "vlib": {
     "voices": "Voices",

@@ -23,6 +23,8 @@ export interface JobArgs {
   gapMs: number;
   /** Whether the engine follows a plain-language style prefix. */
   styleCapable: boolean;
+  /** ElevenLabs v3: the chosen emotion is written as a [tag] at the start of the block. */
+  tagCapable?: boolean;
 }
 
 export interface JobState {
@@ -101,7 +103,12 @@ export const useVoice = create<VoiceState>((set, get) => ({
       for (let i = 0; i < todo.length; i++) {
         const b = todo[i]!;
         set({ job: { step: i + 1, total: todo.length, startedAt, label: b.text.trim().slice(0, 50) } });
-        const text = a.styleCapable && b.style.trim() ? `Say ${b.style.trim()}: ${b.text}` : b.text;
+        const text =
+          a.styleCapable && b.style.trim()
+            ? `Say ${b.style.trim()}: ${b.text}`
+            : a.tagCapable && b.style.trim()
+              ? `[${b.style.trim()}] ${b.text}`
+              : b.text;
         const out = await api.ttsSynthesize({
           providerId: a.providerId,
           voiceId: (b.voiceId || st.voiceId).trim(),

@@ -62,11 +62,9 @@ export default function VoiceLibraryPage() {
 
   const favSet = new Set(favorites.filter((f) => f.providerId === provider?.id).map((f) => f.voiceId));
   const listed: VoiceInfo[] =
-    voices.length > 0
-      ? voices
-      : !provider || provider.adapter === "gemini_tts"
-        ? GEMINI_CATALOG.map((c) => ({ id: c.id, name: c.id, languageCodes: [], gender: c.gender }))
-        : [];
+    !provider || provider.adapter === "gemini_tts"
+      ? GEMINI_CATALOG.map((c) => ({ id: c.id, name: c.id, languageCodes: [], gender: c.gender }))
+      : voices;
 
   const toggleFav = (id: string) => {
     if (!provider) return;
@@ -130,6 +128,7 @@ export default function VoiceLibraryPage() {
               favorites={favSet}
               onToggleFav={(id) => toggleFav(id)}
               providerId={provider?.id}
+              adapter={provider?.adapter}
               lang={lang}
               canPreview={!!provider}
             />

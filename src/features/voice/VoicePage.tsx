@@ -14,7 +14,7 @@ import ModelPicker from "../../components/ModelPicker";
 import { Badge, Button, Field, Input, Select, Textarea } from "../../components/ui/controls";
 import SaveToProjectModal from "../../components/SaveToProjectModal";
 import { audioUrl } from "./audioUrl";
-import AudioTags, { tagSupport } from "./AudioTags";
+import AudioTags, { TAG_GROUPS, tagSupport } from "./AudioTags";
 import VoicePicker from "./VoicePicker";
 import { catalogVoice, GEMINI_CATALOG, GEMINI_STYLES } from "./voiceCatalog";
 import { VOICE_LANGS } from "./voiceLangs";
@@ -76,7 +76,8 @@ export default function VoicePage() {
     () => GEMINI_CATALOG.map((c) => ({ id: c.id, name: c.id, languageCodes: [], gender: c.gender })),
     [],
   );
-  const voiceList = voices.length > 0 ? voices : isGemini ? catalogVoices : [];
+  // Gemini's 30 voices are fixed: the list never depends on the chosen model or a network call.
+  const voiceList = isGemini ? catalogVoices : voices;
   const favSet = useMemo(
     () => new Set(favorites.filter((f) => f.providerId === provider?.id).map((f) => f.voiceId)),
     [favorites, provider?.id],
@@ -163,6 +164,7 @@ export default function VoicePage() {
       pitch: isGoogle ? pitch : undefined,
       gapMs,
       styleCapable: isGemini,
+      tagCapable: support.level === "yes" && support.syntax === "square",
     });
   };
 
@@ -235,6 +237,21 @@ export default function VoicePage() {
                         <option value="__custom">{t("voice.customStyle")}</option>
                       </Select>
                     )}
+                    {!isGemini && support.level === "yes" && support.syntax === "square" && (
+                      <Select
+                        value={b.style}
+                        onChange={(e) => sel.setBlock(b.id, { style: e.target.value })}
+                        className="h-8 w-44 text-xs"
+                        aria-label={t("voice.emotion")}
+                      >
+                        <option value="">{t("voice.noEmotion")}</option>
+                        {TAG_GROUPS[0]!.tags.map((tag) => (
+                          <option key={tag} value={tag}>
+                            {tag}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
                     {isGemini && b.style && !GEMINI_STYLES.some((s) => s.text === b.style) && (
                       <Input
                         value={b.style}
@@ -278,6 +295,7 @@ export default function VoicePage() {
                         onToggleFav={toggleFav}
                         providerId={provider?.id}
                         lang={sel.lang}
+                        adapter={provider?.adapter}
                         canPreview={!!provider}
                         onClose={() => setPickFor(null)}
                       />
@@ -303,6 +321,7 @@ export default function VoicePage() {
         </Card>
 
         {support.level !== "no" && <AudioTags support={support.level} syntax={support.syntax} onInsert={insertTag} />}
+        {support.level === "no" && !isGemini && <p className="text-xs text-muted-foreground">{t("voice.noEmotionHint")}</p>}
         {support.level === "no" && blocks.some((b) => /[[<]\w[^\]>]*[\]>]/.test(b.text)) && (
           <p className="text-xs text-amber-500">{t("tags.support.no")}</p>
         )}

@@ -42,6 +42,7 @@ export default function VoicePicker({
   favorites,
   onToggleFav,
   providerId,
+  adapter,
   lang,
   canPreview,
   onClose,
@@ -52,6 +53,7 @@ export default function VoicePicker({
   favorites: Set<string>;
   onToggleFav: (id: string) => void;
   providerId: string | undefined;
+  adapter?: string;
   lang: string;
   canPreview: boolean;
   onClose?: () => void;
@@ -93,9 +95,31 @@ export default function VoicePicker({
     setBusy(id);
     try {
       const text = PREVIEW[lang.slice(0, 2)] ?? PREVIEW["en"] ?? "";
+      const key = `kothok.preview.${adapter ?? providerId}.${lang.slice(0, 2)}.${id}`;
+      let cached: string | null = null;
+      try {
+        cached = localStorage.getItem(key);
+      } catch {
+        cached = null;
+      }
+      if (cached) {
+        try {
+          setPlaying({ id, url: await audioUrl(cached) });
+          return;
+        } catch {
+          // The saved sample is gone; make it again below.
+        }
+      }
       const out = await api.ttsSynthesize({ providerId, voiceId: id, lang, text });
       const url = await audioUrl(out.file);
       setPlaying({ id, url });
+      try {
+        const f = await api.readMedia(out.file);
+        const saved = await api.saveMedia(out.file.toLowerCase().endsWith(".wav") ? "wav" : "mp3", f.dataB64);
+        localStorage.setItem(key, saved);
+      } catch {
+        // Caching is only a convenience.
+      }
       await api.ttsHistoryDelete(out.historyId);
     } catch (e) {
       toast.error(errorText(e));
