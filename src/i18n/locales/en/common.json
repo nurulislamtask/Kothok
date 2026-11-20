@@ -122,7 +122,7 @@
     "no_provider": "No AI provider is set up. Add one in API Manager.",
     "no_model": "No model is selected for this provider.",
     "invalid_key": "The API key is missing or was rejected by the provider.",
-    "quota_exceeded": "The quota or rate limit for this provider was reached. Try again later or switch provider.",
+    "quota_exceeded": "Every key for this provider has reached its limit for now. Add another key in API Manager, wait, or turn on fallback to another provider.",
     "network_error": "Could not reach the provider. Check your internet connection.",
     "provider_error": "The provider returned an error.",
     "bad_response": "The provider sent a response the app could not read.",
@@ -524,7 +524,31 @@
     "align": "Alignment",
     "alignLeft": "Left",
     "alignCenter": "Centre",
-    "alignRight": "Right"
+    "alignRight": "Right",
+    "smart": {
+      "title": "Smart thumbnail",
+      "make": "Make thumbnail",
+      "needScript": "Paste or choose a script first.",
+      "badPlan": "The AI reply could not be understood. Try again.",
+      "badType": "Use a PNG, JPG or WEBP image.",
+      "tooBig": "The image is larger than 8 MB.",
+      "currentCanvas": "Current design",
+      "needPlan": "Press Analyze script first, or write an image prompt.",
+      "script": "Script",
+      "scriptHint": "The AI reads this and suggests a headline and a picture.",
+      "fromContent": "Use Content Studio script",
+      "fromVoice": "Use Voice Studio script",
+      "headlineLang": "Headline language",
+      "analyze": "Analyze script",
+      "headline": "Headline",
+      "addText": "Add the headline as an editable text layer",
+      "promptHint": "You can edit this before making the picture.",
+      "refTitle": "Copy a design (optional)",
+      "refHint": "Pick a thumbnail whose design you like. The new one keeps the same layout, colours and style but shows your script's content.",
+      "upload": "Upload reference",
+      "useCanvas": "Use current design",
+      "geminiOnly": "Reference mode works only with Gemini image models. Choose one or remove the reference."
+    }
   },
   "voice": {
     "noProvider": "No voice provider is set up",
@@ -718,5 +742,29 @@
     "noPreview": "Connect a Gemini key to hear previews. You can still browse and favorite voices.",
     "selected": "Selected",
     "pick": "Use this voice"
+  },
+  "pool": {
+    "title": "More keys for this provider",
+    "hint": "Add keys from other free accounts. When one hits its limit the app switches to the next by itself and tries the first again when it should work. Keys are stored in Windows Credential Manager.",
+    "add": "Add another key",
+    "labelPlaceholder": "Name (e.g. Account 2)",
+    "save": "Save key",
+    "added": "Key added",
+    "summary": "{{ok}} of {{total}} keys ready",
+    "ready": "Ready",
+    "limited": "Limit reached",
+    "rejected": "Key rejected",
+    "retry": "back {{when}}",
+    "inSeconds": "in {{n}} s",
+    "inMinutes": "in about {{n}} min",
+    "inHours": "in about {{n}} h",
+    "uses": "{{count}} calls",
+    "tryNow": "Try now"
+  },
+  "need": {
+    "useExisting": "You already added a key that can do this:",
+    "useKey": "Use {{name}}",
+    "imagePaid": "Image generation with this key may cost money; your provider's pricing applies.",
+    "autoLinked": "Your Gemini key was also connected for speech and transcription."
   }
 }

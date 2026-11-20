@@ -22,6 +22,30 @@ pub struct ImageRequest {
     pub size: Option<String>,
     /// e.g. "16:9" (Gemini only)
     pub aspect: Option<String>,
+    /// Reference images the result should follow (Gemini only, at most 4).
+    pub references: Vec<ReferenceImage>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferenceImage {
+    pub mime: String,
+    pub data_b64: String,
+}
+
+pub const MAX_REFERENCES: usize = 4;
+const MAX_REFERENCE_B64: usize = 12 * 1024 * 1024;
+
+/// The `input` of an Interactions request: plain text, or text plus image blocks.
+pub fn build_gemini_input(prompt: &str, refs: &[ReferenceImage]) -> Value {
+    if refs.is_empty() {
+        return json!(prompt);
+    }
+    let mut parts = vec![json!({ "type": "text", "text": prompt })];
+    for r in refs {
+        parts.push(json!({ "type": "image", "data": r.data_b64, "mime_type": r.mime }));
+    }
+    Value::Array(parts)
 }
 
 pub struct ImageOut {
@@ -46,6 +70,11 @@ async fn openai_images(
     key: Option<&str>,
     req: &ImageRequest,
 ) -> Result<ImageOut, AppError> {
+    if !req.references.is_empty() {
+        return Err(AppError::Invalid(
+            "reference images need a Gemini image model".into(),
+        ));
+    }
     let base = openai_compat::base(p)?;
     let mut body = json!({ "model": req.model, "prompt": req.prompt, "n": 1 });
     if let Some(s) = req.size.as_deref().filter(|s| !s.is_empty()) {
@@ -120,7 +149,21 @@ async fn gemini_image(
     if let Some(a) = req.aspect.as_deref().filter(|a| !a.is_empty()) {
         format["aspect_ratio"] = json!(a);
     }
-    let body = json!({ "model": req.model, "input": req.prompt, "response_format": format });
+    if req.references.len() > MAX_REFERENCES
+        || req.references.iter().any(|r| {
+            !matches!(r.mime.as_str(), "image/png" | "image/jpeg" | "image/webp")
+                || r.data_b64.len() > MAX_REFERENCE_B64
+        })
+    {
+        return Err(AppError::Invalid(
+            "use up to 4 PNG, JPEG or WebP reference images under 9 MB each".into(),
+        ));
+    }
+    let body = json!({
+        "model": req.model,
+        "input": build_gemini_input(&req.prompt, &req.references),
+        "response_format": format
+    });
     let resp = client()
         .post(format!("{base}/v1beta/interactions"))
         .header("x-goog-api-key", key)
@@ -223,5 +266,24 @@ mod tests {
         assert_eq!(sniff_mime(&[0xFF, 0xD8, 0xFF, 0xE0]), "image/jpeg");
         assert_eq!(sniff_mime(b"RIFFxxxxWEBPyyyy"), "image/webp");
         assert_eq!(sniff_mime(&[0x89, b'P', b'N', b'G']), "image/png");
+    }
+}
+
+#[cfg(test)]
+mod reference_tests {
+    use super::*;
+
+    #[test]
+    fn plain_prompt_stays_a_string_and_references_become_blocks() {
+        assert_eq!(build_gemini_input("hi", &[]), json!("hi"));
+        let r = ReferenceImage {
+            mime: "image/png".into(),
+            data_b64: "AAAA".into(),
+        };
+        let v = build_gemini_input("edit", &[r]);
+        assert_eq!(v[0]["type"], "text");
+        assert_eq!(v[1]["type"], "image");
+        assert_eq!(v[1]["mime_type"], "image/png");
+        assert_eq!(v[1]["data"], "AAAA");
     }
 }

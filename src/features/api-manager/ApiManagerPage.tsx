@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowUp, Plus, Star, Trash2, X, Zap } from "lucide-react";
 import {
@@ -8,6 +9,7 @@ import {
   sharableCategories,
   type Category,
   type CostClass,
+  type PoolEntry,
   type Provider,
   type ProviderInput,
 } from "../../lib/api";
@@ -219,6 +221,138 @@ function ShareRow({ p }: { p: Provider }) {
   );
 }
 
+function fmtWait(secs: number, t: TFunction): string {
+  if (secs < 90) return t("pool.inSeconds", { n: secs });
+  if (secs < 5400) return t("pool.inMinutes", { n: Math.round(secs / 60) });
+  return t("pool.inHours", { n: (secs / 3600).toFixed(1) });
+}
+
+/** Several keys (for example from different free accounts) for one provider, with their limits. */
+function KeyPool({ p }: { p: Provider }) {
+  const { t } = useTranslation();
+  const [rows, setRows] = useState<PoolEntry[]>([]);
+  const [fetchedAt, setFetchedAt] = useState(Date.now());
+  const [now, setNow] = useState(Date.now());
+  const [adding, setAdding] = useState(false);
+  const [label, setLabel] = useState("");
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api
+      .poolList(p.id)
+      .then((r) => {
+        setRows(r);
+        setFetchedAt(Date.now());
+      })
+      .catch(() => undefined);
+  }, [p.id]);
+
+  useEffect(() => {
+    load();
+    const h = setInterval(load, 20000);
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      clearInterval(h);
+      clearInterval(tick);
+    };
+  }, [load]);
+
+  const add = async () => {
+    setBusy(true);
+    try {
+      await api.poolAdd(p.id, label, key);
+      setKey("");
+      setLabel("");
+      setAdding(false);
+      load();
+      toast.success(t("pool.added"));
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const limited = rows.filter((r) => r.status === "limited").length;
+  return (
+    <div className="mt-3 border-t pt-3">
+      <div className="flex items-center gap-2">
+        <div className="text-xs font-medium">{t("pool.title")}</div>
+        {rows.length > 1 && (
+          <Badge tone={limited === rows.length ? "bad" : limited > 0 ? "warn" : "ok"}>
+            {t("pool.summary", { ok: rows.length - limited, total: rows.length })}
+          </Badge>
+        )}
+        <Button size="sm" className="ms-auto" onClick={() => setAdding(!adding)}>
+          {t("pool.add")}
+        </Button>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">{t("pool.hint")}</p>
+      {rows.length > 1 && (
+        <ul className="mt-2 space-y-1">
+          {rows.map((r) => {
+            const left = r.retryInSecs !== null ? Math.max(0, r.retryInSecs - Math.floor((now - fetchedAt) / 1000)) : 0;
+            return (
+              <li key={r.id} className="flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5 text-xs">
+                <span className="font-medium">{r.label}</span>
+                {r.status === "ok" || left === 0 ? (
+                  <Badge tone="ok">{t("pool.ready")}</Badge>
+                ) : (
+                  <Badge tone="warn">
+                    {r.lastError === "key rejected" ? t("pool.rejected") : t("pool.limited")} · {t("pool.retry", { when: fmtWait(left, t) })}
+                  </Badge>
+                )}
+                <span className="text-muted-foreground">{t("pool.uses", { count: r.uses })}</span>
+                <span className="ms-auto flex gap-1">
+                  {r.status === "limited" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        api
+                          .poolReset(p.id, r.id)
+                          .then(load)
+                          .catch((e: unknown) => toast.error(errorText(e)))
+                      }
+                    >
+                      {t("pool.tryNow")}
+                    </Button>
+                  )}
+                  {!r.primary && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-label={t("common.delete")}
+                      onClick={() =>
+                        api
+                          .poolRemove(p.id, r.id)
+                          .then(load)
+                          .catch((e: unknown) => toast.error(errorText(e)))
+                      }
+                    >
+                      <X className="size-3.5" aria-hidden />
+                    </Button>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {adding && (
+        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-[10rem_1fr_auto]">
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("pool.labelPlaceholder")} />
+          <Input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={t("api.apiKeyPlaceholder")} />
+          <Button variant="primary" disabled={busy || !key.trim()} onClick={() => void add()}>
+            {t("pool.save")}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProviderCard({ p, isDefault }: { p: Provider; isDefault: boolean }) {
   const { t } = useTranslation();
   const refresh = useProviders((s) => s.refresh);
@@ -350,6 +484,7 @@ function ProviderCard({ p, isDefault }: { p: Provider; isDefault: boolean }) {
       </div>
 
       <ShareRow p={p} />
+      {p.hasKey && !keyFrom(p) && <KeyPool p={p} />}
 
       {editing && <ProviderForm existing={p} onClose={() => setEditing(false)} />}
       {confirmDelete && (

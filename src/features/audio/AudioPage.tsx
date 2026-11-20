@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Captions, Copy, FileAudio, FolderPlus, Languages } from "lucide-react";
+import NeedProvider from "../../components/NeedProvider";
 import { api, isReady, savedModel, type TranscribeOutput } from "../../lib/api";
 import { errorText } from "../../lib/errors";
 import { exportPlain } from "../../lib/exporters";
@@ -114,15 +115,7 @@ export default function AudioPage() {
   const baseName = file?.label.replace(/\.[^.]+$/, "") ?? "transcript";
 
   if (ready.length === 0) {
-    return (
-      <div className="mx-auto mt-16 max-w-md rounded-xl border border-amber-500/40 bg-amber-500/10 p-6 text-sm">
-        <div className="font-medium">{t("audio.noProvider")}</div>
-        <p className="mt-1 text-xs text-muted-foreground">{t("audio.noProviderBody")}</p>
-        <Button className="mt-4" variant="primary" size="sm" onClick={() => setRoute("apiManager")}>
-          {t("content.goApi")}
-        </Button>
-      </div>
-    );
+    return <NeedProvider category="stt" title={t("audio.noProvider")} body={t("audio.noProviderBody")} />;
   }
 
   return (

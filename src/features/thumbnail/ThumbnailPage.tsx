@@ -15,6 +15,7 @@ import {
   Trash2,
   Type,
   Undo2,
+  Wand2,
 } from "lucide-react";
 import { api, bytesToBase64 } from "../../lib/api";
 import { errorText } from "../../lib/errors";
@@ -25,6 +26,7 @@ import { toast } from "../../stores/toast";
 import SaveToProjectModal from "../../components/SaveToProjectModal";
 import { Button, Field, Select, Textarea } from "../../components/ui/controls";
 import AiImageModal from "./AiImageModal";
+import SmartThumbModal from "./SmartThumbModal";
 import { addImageFromData, saveDesign } from "./imageIo";
 import { FONTS, GRADIENTS, SIZE_PRESETS, newTextLayer, type ImageLayer, type Layer, type TextLayer } from "./model";
 import { ensureFonts, hitHandle, hitLayer, render, renderToBlob } from "./render";
@@ -115,6 +117,7 @@ export default function ThumbnailPage() {
   const drag = useRef<Drag | null>(null);
   const [zoom, setZoom] = useState(0.5);
   const [aiOpen, setAiOpen] = useState(false);
+  const [smartOpen, setSmartOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [customW, setCustomW] = useState(String(doc.width));
@@ -347,6 +350,10 @@ export default function ThumbnailPage() {
           <Sparkles className="size-3.5" aria-hidden />
           {t("thumb.aiImage")}
         </Button>
+        <Button size="sm" variant="primary" onClick={() => setSmartOpen(true)}>
+          <Wand2 className="size-3.5" aria-hidden />
+          {t("thumb.smart.title")}
+        </Button>
 
         <div className="ms-auto flex items-center gap-1.5">
           <Button size="sm" variant="ghost" disabled={!canUndo} onClick={() => st().undo()} aria-label={t("common.undo")}>
@@ -514,6 +521,7 @@ export default function ThumbnailPage() {
       </div>
 
       {aiOpen && <AiImageModal onClose={() => setAiOpen(false)} />}
+      {smartOpen && <SmartThumbModal onClose={() => setSmartOpen(false)} />}
       {saveOpen && (
         <SaveToProjectModal
           initialTitle={title}

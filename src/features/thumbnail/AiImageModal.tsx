@@ -6,8 +6,8 @@ import { errorText } from "../../lib/errors";
 import { defaultProvider, useProviders } from "../../stores/providers";
 import { useThumb } from "../../stores/thumbnail";
 import { toast } from "../../stores/toast";
-import { useUi } from "../../stores/ui";
 import ModelPicker from "../../components/ModelPicker";
+import NeedProvider from "../../components/NeedProvider";
 import { Button, Field, Input, Modal, Select, Textarea } from "../../components/ui/controls";
 import { addImageFromData } from "./imageIo";
 
@@ -40,7 +40,6 @@ const OPENAI_SIZES = ["", "1024x1024", "1536x1024", "1024x1536", "1792x1024", "1
 
 export default function AiImageModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const setRoute = useUi((s) => s.setRoute);
   const providers = useProviders((s) => s.providers);
   const defaults = useProviders((s) => s.defaults);
   const doc = useThumb((s) => s.doc);
@@ -114,21 +113,7 @@ export default function AiImageModal({ onClose }: { onClose: () => void }) {
       }
     >
       {ready.length === 0 ? (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
-          <div className="font-medium">{t("thumb.noImageProvider")}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{t("thumb.noImageProviderBody")}</p>
-          <Button
-            size="sm"
-            variant="primary"
-            className="mt-3"
-            onClick={() => {
-              onClose();
-              setRoute("apiManager");
-            }}
-          >
-            {t("content.goApi")}
-          </Button>
-        </div>
+        <NeedProvider category="image" title={t("thumb.noImageProvider")} body={t("thumb.noImageProviderBody")} />
       ) : (
         <>
           <Field label={t("thumb.topicLabel")}>

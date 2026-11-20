@@ -85,6 +85,8 @@ export interface ImageGenInput {
   prompt: string;
   size?: string;
   aspect?: string;
+  /** Reference images the result should follow (Gemini image models only). */
+  references?: Array<{ mime: string; dataB64: string }>;
 }
 
 export interface ImageGenOutput {
@@ -135,6 +137,15 @@ export interface PickedFile {
 }
 
 
+export interface PoolEntry {
+  id: number;
+  label: string;
+  primary: boolean;
+  status: "ok" | "limited";
+  retryInSecs: number | null;
+  lastError: string | null;
+  uses: number;
+}
 export interface VoiceInfo {
   id: string;
   name: string;
@@ -302,6 +313,10 @@ export const api = {
   installFfmpeg: () => call<void>("install_ffmpeg"),
   installWhisperEngine: () => call<void>("install_whisper_engine"),
   installWhisperModel: (name: string) => call<void>("install_whisper_model", { name }),
+  poolList: (providerId: string) => call<PoolEntry[]>("pool_list", { providerId }),
+  poolAdd: (providerId: string, label: string, apiKey: string) => call<void>("pool_add", { providerId, label, apiKey }),
+  poolRemove: (providerId: string, id: number) => call<void>("pool_remove", { providerId, id }),
+  poolReset: (providerId: string, id: number) => call<void>("pool_reset", { providerId, id }),
   audioJoin: (files: string[], gapMs?: number) => call<string>("audio_join", { files, gapMs: gapMs ?? null }),
   voiceProfileClone: (profileId: number, providerId: string) =>
     call<VoiceProfile>("voice_profile_clone", { profileId, providerId }),

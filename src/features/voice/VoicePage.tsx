@@ -9,6 +9,7 @@ import { defaultProvider, useProviders } from "../../stores/providers";
 import { toast } from "../../stores/toast";
 import { useUi } from "../../stores/ui";
 import { useVoice } from "../../stores/voice";
+import NeedProvider from "../../components/NeedProvider";
 import ModelPicker from "../../components/ModelPicker";
 import { Badge, Button, Field, Input, Select, Textarea } from "../../components/ui/controls";
 import SaveToProjectModal from "../../components/SaveToProjectModal";
@@ -187,15 +188,7 @@ export default function VoicePage() {
   };
 
   if (ready.length === 0) {
-    return (
-      <div className="mx-auto mt-16 max-w-md rounded-xl border border-amber-500/40 bg-amber-500/10 p-6 text-sm">
-        <div className="font-medium">{t("voice.noProvider")}</div>
-        <p className="mt-1 text-xs text-muted-foreground">{t("voice.noProviderBody")}</p>
-        <Button className="mt-4" variant="primary" size="sm" onClick={() => setRoute("apiManager")}>
-          {t("content.goApi")}
-        </Button>
-      </div>
-    );
+    return <NeedProvider category="tts" title={t("voice.noProvider")} body={t("voice.noProviderBody")} />;
   }
 
   const nameOf = (id: string) => {

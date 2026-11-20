@@ -7,7 +7,7 @@ use tauri::State;
 use super::providers::load_provider;
 use crate::db::Db;
 use crate::error::AppError;
-use crate::providers::image_gen::{generate_image, ImageRequest};
+use crate::providers::image_gen::{generate_image, ImageRequest, ReferenceImage};
 use crate::providers::saved_model;
 
 #[derive(Debug, Deserialize)]
@@ -18,6 +18,8 @@ pub struct ImageInput {
     pub prompt: String,
     pub size: Option<String>,
     pub aspect: Option<String>,
+    #[serde(default)]
+    pub references: Vec<ReferenceImage>,
 }
 
 #[derive(Debug, Serialize)]
@@ -78,6 +80,7 @@ pub async fn ai_generate_image(
         prompt: input.prompt,
         size: input.size,
         aspect: input.aspect,
+        references: input.references,
     };
     let result = crate::keypool::with_keys(&db, &record, |key| {
         let (record, req) = (&record, &req);
